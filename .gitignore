@@ -1,0 +1,22 @@
+# Xcode
+.DS_Store
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode project user data
+*.xcuserdatad
+
+# macOS
+.Trashes
+
+# Environment / secrets
+.env
+*.pem
+*.p12
