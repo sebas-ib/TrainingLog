@@ -44,18 +44,14 @@ struct NewWorkoutSessionView: View {
 
                 Section {
                     DatePicker(
-                        "Date",
-                        selection: $sessionStartTime,
-                        in: ...Date(),
-                        displayedComponents: .date
-                    )
-                    DatePicker(
                         "Time",
                         selection: $sessionStartTime,
                         displayedComponents: .hourAndMinute
                     )
                 } header: {
                     Text("When")
+                } footer: {
+                    Text("Workout will be logged for \(targetDate.formatted(.dateTime.month(.abbreviated).day().year()))")
                 }
 
                 Section {
