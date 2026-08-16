@@ -70,6 +70,8 @@ struct ProgressView: View {
             }
             .searchable(text: $searchText, prompt: "Search exercises")
             .navigationTitle("Progress")
+            .scrollContentBackground(.hidden)
+            .background(SpinningGradientBackground())
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {

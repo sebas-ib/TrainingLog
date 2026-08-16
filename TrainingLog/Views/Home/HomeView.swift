@@ -18,6 +18,7 @@ struct HomeView: View {
     @State private var showingNewWorkoutSheet = false
     @State private var newlyCreatedWorkoutSession: WorkoutSession?
     @State private var datePickerExpanded = false
+    @State private var gradientRotation: Double = 0
     
     private let calendar = Calendar.current
 
@@ -161,6 +162,8 @@ struct HomeView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(SpinningGradientBackground())
             .tint(Theme.accent)
             .navigationTitle("Workout Tracker")
             .toolbar {

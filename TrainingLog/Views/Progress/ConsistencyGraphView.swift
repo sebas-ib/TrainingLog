@@ -14,10 +14,6 @@ struct ConsistencyGraphView: View {
     private let calendar = Calendar.current
     private let accentColor = Theme.accent
     
-    private var weeksToShow: Int {
-        unitSettings.consistencyWeeksToShow
-    }
-    
     private var activityMap: [Date: Int] {
         WorkoutCalculations.activityByDay(from: workoutDays)
     }
@@ -27,7 +23,7 @@ struct ConsistencyGraphView: View {
         let weekday = calendar.component(.weekday, from: today)
         let daysUntilSaturday = 7 - weekday
         guard let gridEnd = calendar.date(byAdding: .day, value: daysUntilSaturday, to: today) else { return [] }
-        guard let gridStart = calendar.date(byAdding: .day, value: -(weeksToShow * 7 - 1), to: gridEnd) else { return [] }
+        guard let gridStart = calendar.date(byAdding: .day, value: -(52 * 7 - 1), to: gridEnd) else { return [] }
         
         var allDays: [Date] = []
         var current = gridStart
@@ -98,9 +94,6 @@ struct ConsistencyGraphView: View {
                         .frame(minWidth: geometry.size.width, alignment: .trailing)
                     }
                     .onAppear {
-                        scrollToMostRecentWeek(proxy: proxy)
-                    }
-                    .onChange(of: weeksToShow) {
                         scrollToMostRecentWeek(proxy: proxy)
                     }
                 }
