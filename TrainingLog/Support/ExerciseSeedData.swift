@@ -51,12 +51,11 @@ extension ExerciseSeedData {
     static func seedIfNeeded(context: ModelContext) {
         let descriptor = FetchDescriptor<Exercise>()
         let existingCount = (try? context.fetchCount(descriptor)) ?? 0
-        
+
         guard existingCount == 0 else {
-            migrateUntaggedExercisesIfNeeded(context: context)
             return
         }
-        
+
         for entry in starterExercises {
             let exercise = Exercise(
                 name: entry.name,
@@ -65,31 +64,10 @@ extension ExerciseSeedData {
                 secondaryMuscleGroup: entry.secondary,
                 loggingType: entry.type
             )
+
             context.insert(exercise)
         }
-        
+
         try? context.save()
-    }
-    
-    @MainActor
-    static func migrateUntaggedExercisesIfNeeded(context: ModelContext) {
-        let descriptor = FetchDescriptor<Exercise>()
-        guard let allExercises = try? context.fetch(descriptor) else { return }
-        
-        let nameToEntry = Dictionary(uniqueKeysWithValues: starterExercises.map { ($0.name, $0) })
-        var didUpdate = false
-        
-        for exercise in allExercises {
-            if exercise.muscleGroupRawValue.isEmpty, let match = nameToEntry[exercise.name] {
-                exercise.muscleGroup = match.primary
-                exercise.secondaryMuscleGroup = match.secondary
-                exercise.loggingType = match.type
-                didUpdate = true
-            }
-        }
-        
-        if didUpdate {
-            try? context.save()
-        }
     }
 }
