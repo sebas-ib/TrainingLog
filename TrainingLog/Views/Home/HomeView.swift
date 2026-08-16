@@ -16,7 +16,7 @@ struct HomeView: View {
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
     @State private var saveError: Error?
     @State private var showingNewWorkoutSheet = false
-    @State private var newlyCreatedWorkoutSession: WorkoutSession?
+    @State private var activeWorkoutSession: WorkoutSession?
     @State private var datePickerExpanded = false
     @State private var gradientRotation: Double = 0
     
@@ -142,9 +142,15 @@ struct HomeView: View {
                 }
                 
                 if let day = selectedDay, !day.sessions.isEmpty {
-                    WorkoutListView(workoutDay: day) { newWorkout in
-                        scheduleNavigation(to: newWorkout)
-                    }
+                    WorkoutListView(
+                        workoutDay: day,
+                        onWorkoutSessionCreated: { newWorkout in
+                            scheduleNavigation(to: newWorkout)
+                        },
+                        onWorkoutSessionSelected: { existingWorkout in
+                            activeWorkoutSession = existingWorkout
+                        }
+                    )
                     .transition(
                         .asymmetric(
                             insertion: .move(edge: .bottom).combined(with: .opacity),
@@ -193,7 +199,7 @@ struct HomeView: View {
                 }
                 .tint(Theme.accent)
             }
-            .navigationDestination(item: $newlyCreatedWorkoutSession) { workout in
+            .navigationDestination(item: $activeWorkoutSession) { workout in
                 WorkoutDetailView(session: workout)
             }
             .alert(
@@ -302,7 +308,7 @@ struct HomeView: View {
     
     private func scheduleNavigation(to workout: WorkoutSession) {
         DispatchQueue.main.asyncAfter(deadline: .now()) {
-            newlyCreatedWorkoutSession = workout
+            activeWorkoutSession = workout
         }
     }
 }

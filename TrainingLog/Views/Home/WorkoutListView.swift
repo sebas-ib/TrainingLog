@@ -14,6 +14,7 @@ struct WorkoutListView: View {
 
     let workoutDay: WorkoutDay
     let onWorkoutSessionCreated: (WorkoutSession) -> Void
+    let onWorkoutSessionSelected: (WorkoutSession) -> Void
 
     @State private var workoutSessionPendingDeletion: WorkoutSession?
     @State private var showingNewWorkoutSheet = false
@@ -30,6 +31,9 @@ struct WorkoutListView: View {
             ForEach(sortedWorkouts) { workout in
                 WorkoutRow(
                     workout: workout,
+                    onSelect: {
+                        onWorkoutSessionSelected(workout)
+                    },
                     onDelete: {
                         workoutSessionPendingDeletion = workout
                     }
@@ -164,6 +168,7 @@ private struct WorkoutRow: View {
     @EnvironmentObject private var unitSettings: UnitSettings
 
     let workout: WorkoutSession
+    let onSelect: () -> Void
     let onDelete: () -> Void
 
     private var volumes: [(group: MuscleGroup, volume: Double)] {
@@ -180,16 +185,27 @@ private struct WorkoutRow: View {
     }
 
     var body: some View {
-        NavigationLink {
-            WorkoutDetailView(session: workout)
+        Button {
+            onSelect()
         } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                workoutName
-                workoutTime
-                muscleGroupVolumes
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    workoutName
+                    workoutTime
+                    muscleGroupVolumes
+                }
+                .padding(.vertical, 4)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.tertiary)
             }
-            .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
         .swipeActions(
             edge: .trailing,
             allowsFullSwipe: false

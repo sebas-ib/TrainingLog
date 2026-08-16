@@ -25,8 +25,6 @@ struct MiniStreakView: View {
         let normalizedSelected = calendar.startOfDay(for: selectedDate.wrappedValue)
         let today = calendar.startOfDay(for: Date())
 
-        // Default to the trailing 7 days ending today, unless the selected
-        // date is already outside that range.
         let defaultStart = calendar.date(byAdding: .day, value: -(visibleDaysCount - 1), to: today) ?? today
         let defaultEnd = today
 
@@ -37,8 +35,6 @@ struct MiniStreakView: View {
         }
     }
 
-    // MARK: - Activity
-
     private var activityMap: [Date: Int] {
         var normalizedMap: [Date: Int] = [:]
         for (date, count) in WorkoutCalculations.activityByDay(from: workoutDays) {
@@ -47,15 +43,11 @@ struct MiniStreakView: View {
         return normalizedMap
     }
 
-    // MARK: - Visible Days
-
     private var visibleDays: [Date] {
         (0..<visibleDaysCount).compactMap { offset in
             calendar.date(byAdding: .day, value: offset, to: windowStart)
         }
     }
-
-    // MARK: - Body
 
     var body: some View {
         HStack(spacing: 0) {
@@ -72,8 +64,6 @@ struct MiniStreakView: View {
         }
     }
 
-    // MARK: - Day Column
-
     @ViewBuilder
     private func dayColumn(for day: Date) -> some View {
         VStack(spacing: 4) {
@@ -85,20 +75,14 @@ struct MiniStreakView: View {
         .contentShape(Rectangle())
     }
 
-    // MARK: - Weekday
-
     private func weekdayLetter(for date: Date) -> String {
         let weekdayIndex = calendar.component(.weekday, from: date) - 1
         return calendar.veryShortWeekdaySymbols[weekdayIndex]
     }
 
-    // MARK: - Selection
-
     private func isSelected(_ date: Date) -> Bool {
         calendar.isDate(date, inSameDayAs: selectedDate)
     }
-
-    // MARK: - Dot
 
     @ViewBuilder
     private func dot(for day: Date) -> some View {
@@ -121,15 +105,10 @@ struct MiniStreakView: View {
         .frame(width: 16, height: 16)
     }
 
-    // MARK: - Window Synchronization
-
     private func syncWindow(to date: Date) {
         let normalizedDate = calendar.startOfDay(for: date)
         let windowEnd = calendar.date(byAdding: .day, value: visibleDaysCount - 1, to: windowStart) ?? windowStart
 
-        // Already visible — no need to move the window, just let the
-        // selection ring/text color update (which isn't animated by
-        // the fade transition since windowStart doesn't change).
         guard normalizedDate < windowStart || normalizedDate > windowEnd else { return }
 
         let newStart: Date
