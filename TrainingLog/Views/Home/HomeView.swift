@@ -90,9 +90,9 @@ struct HomeView: View {
                         }
                         
                         DaySummaryView(
-                            date: selectedDate,
                             day: selectedDay,
-                            isExpanded: datePickerExpanded
+                            isExpanded: datePickerExpanded,
+                            selectedDate: $selectedDate
                         ) {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
                                 datePickerExpanded.toggle()

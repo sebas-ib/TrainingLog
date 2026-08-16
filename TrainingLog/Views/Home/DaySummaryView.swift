@@ -7,20 +7,20 @@
 import SwiftUI
 
 struct DaySummaryView: View {
-    let date: Date
     let day: WorkoutDay?
     let isExpanded: Bool
+    @Binding var selectedDate: Date
     let onTap: () -> Void
-    
+
     private var workoutCount: Int {
         day?.sessions.count ?? 0
     }
-    
+
     private var totalSets: Int {
         guard let day else { return 0 }
         return WorkoutCalculations.totalSets(for: day)
     }
-    
+
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 20) {
@@ -32,8 +32,8 @@ struct DaySummaryView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .center)
-            
-            MiniStreakView()
+
+            MiniStreakView(selectedDate: $selectedDate)
         }
         .frame(maxWidth: .infinity)
     }
