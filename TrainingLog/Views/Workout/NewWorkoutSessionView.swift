@@ -130,8 +130,14 @@ struct NewWorkoutSessionView: View {
             name: sessionName.isEmpty ? template.name : sessionName
         )
 
-        for templateExercise in template.exercises {
-            let newWorkoutExercise = WorkoutExercise(exercise: templateExercise.exercise, loggedAt: sessionStartTime)
+        let sortedTemplateExercises = template.exercises.sorted { $0.order < $1.order }
+
+        for (index, templateExercise) in sortedTemplateExercises.enumerated() {
+            let newWorkoutExercise = WorkoutExercise(
+                exercise: templateExercise.exercise,
+                loggedAt: sessionStartTime,
+                order: index + 1
+            )
             let sortedTemplateSets = templateExercise.sets.sorted(by: { $0.order < $1.order })
 
             for templateSet in sortedTemplateSets {

@@ -340,11 +340,6 @@ struct SetRowView: View {
         .offset(
             y: hasAppeared ? 0 : 6
         )
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                focusedField.wrappedValue = nil
-            }
-        )
         .onDisappear {
             saveNow()
             timer.suspend()

@@ -24,7 +24,14 @@ struct WorkoutDetailView: View {
         initialSeconds: 0,
         targetSeconds: 90
     )
-    
+
+    /// `session.exercises` in display order — SwiftData's relationship
+    /// array doesn't guarantee it preserves insertion order on its own,
+    /// so `order` (set once, at creation) is what's actually trusted.
+    private var sortedExercises: [WorkoutExercise] {
+        session.exercises.sorted { $0.order < $1.order }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             List {
@@ -48,7 +55,7 @@ struct WorkoutDetailView: View {
                 if session.exercises.isEmpty {
                     emptyWorkoutSection
                 } else {
-                    ForEach(session.exercises) { workoutExercise in
+                    ForEach(sortedExercises) { workoutExercise in
                         exerciseSection(for: workoutExercise)
                     }
                 }
@@ -261,9 +268,33 @@ struct WorkoutDetailView: View {
                 for: sortedSets[setIndex + 1],
                 loggingType: located.workoutExercise.exercise.loggingType
             ).first
-        } else {
-            focusedField = nil
+            return
         }
+
+        // Last field of the last set in this exercise — hop into the
+        // next exercise's first set instead of dead-ending, so "Next"
+        // can reach a timed field that happens to live in a different
+        // exercise from the one currently focused.
+        focusedField = nextExerciseFirstField(after: located.workoutExercise)
+    }
+
+    private func nextExerciseFirstField(after workoutExercise: WorkoutExercise) -> SetField? {
+        guard let exerciseIndex = sortedExercises.firstIndex(where: {
+            $0.persistentModelID == workoutExercise.persistentModelID
+        }), exerciseIndex + 1 < sortedExercises.count else {
+            return nil
+        }
+
+        let nextExercise = sortedExercises[exerciseIndex + 1]
+
+        guard let firstSet = nextExercise.sets.sorted(by: { $0.order < $1.order }).first else {
+            return nil
+        }
+
+        return SetField.sequence(
+            for: firstSet,
+            loggingType: nextExercise.exercise.loggingType
+        ).first
     }
 
     // MARK: - Rest Timer
@@ -600,9 +631,12 @@ struct WorkoutDetailView: View {
     private func addExercise(
         _ exercise: Exercise
     ) {
+        let nextOrder = (session.exercises.map(\.order).max() ?? 0) + 1
+
         let workoutExercise = WorkoutExercise(
             exercise: exercise,
-            loggedAt: session.startTime
+            loggedAt: session.startTime,
+            order: nextOrder
         )
 
         withAnimation(

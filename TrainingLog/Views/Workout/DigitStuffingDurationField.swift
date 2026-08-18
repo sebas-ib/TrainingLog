@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import UIKit
 
 /// A calculator/stopwatch-style time field: it always displays a fully
 /// zero-padded "M:SS" (or "MM:SS" past 9 minutes), and typing a digit
@@ -13,129 +12,148 @@ import UIKit
 /// "1:30". Backspace does the reverse, shifting right and refilling
 /// with a leading zero.
 ///
-/// This is deliberately a `UIViewRepresentable` wrapping a real
-/// `UITextField` rather than a plain SwiftUI `TextField`: digit-stuffing
-/// entry doesn't have a meaningful cursor position — every keystroke
-/// always affects the same fixed-width digit buffer regardless of where
-/// the caret happens to be — and a `UITextFieldDelegate`'s
-/// `shouldChangeCharactersIn` callback is the reliable way to intercept
-/// each keystroke and drive that buffer directly, rather than trying to
-/// diff an already-colon-formatted display string on every change.
-struct DigitStuffingDurationField: UIViewRepresentable {
+/// This used to be a `UIViewRepresentable` wrapping a real `UITextField`,
+/// manually bridging its first-responder status to `focusedField`. That
+/// bridge was the actual bug: `becomeFirstResponder()`/
+/// `resignFirstResponder()` synchronously fire
+/// `textFieldDidBeginEditing`/`textFieldDidEndEditing`, which write back
+/// to the very `focusedField` binding that had just been read to decide
+/// whether to call them — a read-then-write-in-the-same-pass loop that
+/// showed up as "AttributeGraph: cycle detected" and, in practice, could
+/// drop the keyboard after a single keystroke. A plain `TextField` with
+/// native `.focused()` — the same mechanism every other field in this
+/// row already uses without issue — has no such bridge to desync.
+///
+/// The one thing native `TextField` doesn't give us is a reliable
+/// "which digit was just typed" the way `shouldChangeCharactersIn` did
+/// regardless of caret position. `insertedDigit(old:new:)` below gets
+/// the same position-independent guarantee a different way: for a
+/// single-character insertion, the inserted character is whatever sits
+/// where the old and new strings first diverge — true no matter where
+/// the caret was.
+struct DigitStuffingDurationField: View {
     @Binding var totalSeconds: Int
     var isEnabled: Bool
     var fontSize: CGFloat = 16
     var focusedField: FocusState<SetField?>.Binding
     var focusValue: SetField
 
-    func makeUIView(context: Context) -> UITextField {
-        let field = UITextField()
-        field.keyboardType = .numberPad
-        field.textAlignment = .center
-        field.font = .monospacedDigitSystemFont(ofSize: fontSize, weight: .semibold)
-        field.tintColor = .clear // no meaningful caret position to show
-        field.delegate = context.coordinator
-        field.text = Coordinator.format(totalSeconds)
-        field.accessibilityLabel = "Duration"
-        return field
+    @State private var digits: [Character]
+    @State private var text: String
+
+    init(
+        totalSeconds: Binding<Int>,
+        isEnabled: Bool,
+        fontSize: CGFloat = 16,
+        focusedField: FocusState<SetField?>.Binding,
+        focusValue: SetField
+    ) {
+        self._totalSeconds = totalSeconds
+        self.isEnabled = isEnabled
+        self.fontSize = fontSize
+        self.focusedField = focusedField
+        self.focusValue = focusValue
+
+        let initialDigits = Self.digitsFor(totalSeconds.wrappedValue)
+        self._digits = State(initialValue: initialDigits)
+        self._text = State(initialValue: Self.format(digits: initialDigits))
     }
 
-    func updateUIView(_ uiView: UITextField, context: Context) {
-        context.coordinator.parent = self
-        uiView.isEnabled = isEnabled
+    var body: some View {
+        TextField("0:00", text: $text)
+            .keyboardType(.numberPad)
+            .textFieldStyle(.plain)
+            .font(.system(size: fontSize, weight: .semibold))
+            .monospacedDigit()
+            .multilineTextAlignment(.center)
+            .disabled(!isEnabled)
+            .focused(focusedField, equals: focusValue)
+            .accessibilityLabel("Duration")
+            .onChange(of: text) { oldValue, newValue in
+                handleTextChange(from: oldValue, to: newValue)
+            }
+            .onChange(of: totalSeconds) { _, newValue in
+                syncFromExternal(newValue)
+            }
+    }
 
-        let formatted = Coordinator.format(totalSeconds)
-        if uiView.text != formatted {
-            uiView.text = formatted
-            context.coordinator.resetDigits(to: totalSeconds)
+    /// Interprets a raw text-field edit as either "one digit typed" or
+    /// "backspace," updates the digit buffer accordingly, and writes the
+    /// reformatted canonical string back — which re-triggers this same
+    /// handler once more, but the guard below recognizes that echo (it
+    /// already matches what the buffer would produce) and no-ops.
+    private func handleTextChange(from oldValue: String, to newValue: String) {
+        let expected = Self.format(digits: digits)
+        guard newValue != expected else { return }
+
+        if newValue.count < oldValue.count {
+            // Backspace — shift right, refill the front with a zero,
+            // regardless of where the caret visually was.
+            digits = ["0"] + digits.dropLast()
+        } else if let inserted = Self.insertedDigit(old: oldValue, new: newValue) {
+            digits = Array(digits.dropFirst()) + [inserted]
+        } else {
+            // Couldn't confidently interpret the edit (e.g. a paste, or
+            // a mid-string replacement) — digit-stuffing doesn't have a
+            // meaningful notion of "replace this character," so just
+            // snap back to the last valid value instead of guessing.
+            text = expected
+            return
         }
 
-        let shouldBeFocused = focusedField.wrappedValue == focusValue
-        if shouldBeFocused, !uiView.isFirstResponder {
-            uiView.becomeFirstResponder()
-        } else if !shouldBeFocused, uiView.isFirstResponder {
-            uiView.resignFirstResponder()
+        let seconds = Self.seconds(from: digits)
+        text = Self.format(digits: digits)
+        if seconds != totalSeconds {
+            totalSeconds = seconds
         }
     }
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
+    /// Keeps the field in sync with `totalSeconds` changing from outside
+    /// (the timer ticking, "Fill with previous," Clear) without
+    /// clobbering in-progress typing that already matches.
+    private func syncFromExternal(_ seconds: Int) {
+        guard seconds != Self.seconds(from: digits) else { return }
+        digits = Self.digitsFor(seconds)
+        text = Self.format(digits: digits)
     }
 
-    final class Coordinator: NSObject, UITextFieldDelegate {
-        var parent: DigitStuffingDurationField
-        private var digits: [Character]
+    /// The single character that turns `old` into `new`, assuming
+    /// exactly one character was inserted somewhere — found as wherever
+    /// the two strings first diverge, which holds regardless of caret
+    /// position. Returns nil if the edit doesn't look like a clean
+    /// single-character insertion (e.g. `new` isn't exactly one longer).
+    private static func insertedDigit(old: String, new: String) -> Character? {
+        guard new.count == old.count + 1 else { return nil }
 
-        init(_ parent: DigitStuffingDurationField) {
-            self.parent = parent
-            self.digits = Self.digitsFor(parent.totalSeconds)
+        let oldChars = Array(old)
+        let newChars = Array(new)
+
+        var i = 0
+        while i < oldChars.count, i < newChars.count, oldChars[i] == newChars[i] {
+            i += 1
         }
 
-        func resetDigits(to seconds: Int) {
-            digits = Self.digitsFor(seconds)
-        }
+        guard i < newChars.count, newChars[i].isNumber else { return nil }
+        return newChars[i]
+    }
 
-        static func format(_ totalSeconds: Int) -> String {
-            let clamped = max(0, min(totalSeconds, 99 * 60 + 59))
-            return String(format: "%d:%02d", clamped / 60, clamped % 60)
-        }
+    /// The four digits (MMSS) that make up `totalSeconds`, most
+    /// significant first — the internal buffer this field edits.
+    private static func digitsFor(_ totalSeconds: Int) -> [Character] {
+        let clamped = max(0, min(totalSeconds, 99 * 60 + 59))
+        let combined = String(format: "%04d", (clamped / 60) * 100 + (clamped % 60))
+        return Array(combined.suffix(4))
+    }
 
-        /// The four digits (MMSS) that make up `totalSeconds`, most
-        /// significant first — the internal buffer this field edits.
-        static func digitsFor(_ totalSeconds: Int) -> [Character] {
-            let clamped = max(0, min(totalSeconds, 99 * 60 + 59))
-            let combined = String(format: "%04d", (clamped / 60) * 100 + (clamped % 60))
-            return Array(combined.suffix(4))
-        }
+    private static func seconds(from digits: [Character]) -> Int {
+        let combined = Int(String(digits)) ?? 0
+        let minutes = combined / 100
+        let seconds = min(combined % 100, 59)
+        return minutes * 60 + seconds
+    }
 
-        private func secondsFromDigits() -> Int {
-            let combined = Int(String(digits)) ?? 0
-            let minutes = combined / 100
-            let seconds = min(combined % 100, 59)
-            return minutes * 60 + seconds
-        }
-
-        private func commit(_ textField: UITextField) {
-            let seconds = secondsFromDigits()
-            textField.text = Self.format(seconds)
-            if seconds != parent.totalSeconds {
-                parent.totalSeconds = seconds
-            }
-        }
-
-        func textField(
-            _ textField: UITextField,
-            shouldChangeCharactersIn range: NSRange,
-            replacementString string: String
-        ) -> Bool {
-            if string.isEmpty {
-                // Backspace — shift right, refill the front with a zero,
-                // regardless of where the caret visually was.
-                digits = ["0"] + digits.dropLast()
-            } else {
-                for character in string where character.isNumber {
-                    digits = Array(digits.dropFirst()) + [character]
-                }
-            }
-            commit(textField)
-            return false // we've already written the formatted text ourselves
-        }
-
-        func textFieldDidBeginEditing(_ textField: UITextField) {
-            parent.focusedField.wrappedValue = parent.focusValue
-            // Digit entry doesn't depend on caret position, but leaving
-            // it mid-string looks like a stray blinking line — park it
-            // at the end.
-            DispatchQueue.main.async {
-                let end = textField.endOfDocument
-                textField.selectedTextRange = textField.textRange(from: end, to: end)
-            }
-        }
-
-        func textFieldDidEndEditing(_ textField: UITextField) {
-            if parent.focusedField.wrappedValue == parent.focusValue {
-                parent.focusedField.wrappedValue = nil
-            }
-        }
+    private static func format(digits: [Character]) -> String {
+        let seconds = seconds(from: digits)
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 }
