@@ -70,6 +70,35 @@ struct WorkoutDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     renameButton
                 }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Button {
+                        focusedField = nil
+                    } label: {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 44, height: 44)
+                    }
+                    .glassEffect(.regular, in: Circle())
+                    .padding(.bottom, 10)
+                    .accessibilityLabel("Done")
+
+                    Spacer()
+
+                    Button {
+                        advanceFocus()
+                    } label: {
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .frame(width: 44, height: 44)
+                    }
+                    .glassEffect(.regular, in: Circle())
+                    .padding(.bottom, 10)
+                    .accessibilityLabel("Next field")
+                }
+                .sharedBackgroundVisibility(.hidden)
             }
 
             // Floats above the List, outside its layout system,
@@ -152,6 +181,88 @@ struct WorkoutDetailView: View {
             )
         } header: {
             exerciseHeader(for: workoutExercise)
+        }
+    }
+
+    // MARK: - Keyboard Accessory
+
+    /// A single, screen-level keyboard toolbar shared by every set row —
+    /// only `focusedField` changing (not every keystroke) causes this to
+    /// re-render, which avoids the input-accessory-view churn a
+    /// per-row toolbar caused (each row re-rendering on every keystroke
+    /// briefly rebuilt the keyboard accessory, occasionally dropping
+    /// first responder before a digit-stuffing field like the duration
+    /// entry could register more than one keystroke).
+    private var keyboardAccessory: some View {
+        HStack {
+            Button("Done") {
+                focusedField = nil
+            }
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(Theme.accent)
+
+            Spacer()
+
+            Button {
+                advanceFocus()
+            } label: {
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .accessibilityLabel("Next field")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+    }
+
+    /// Finds the set (and its owning exercise) a field belongs to,
+    /// wherever it lives in the session — lets the keyboard's "next"
+    /// arrow hop between sets, and even between exercises, from one
+    /// shared toolbar instead of a row needing to know its own siblings.
+    private func locateSet(
+        for id: PersistentIdentifier
+    ) -> (workoutExercise: WorkoutExercise, set: ExerciseSet)? {
+        for workoutExercise in session.exercises {
+            if let match = workoutExercise.sets.first(where: { $0.persistentModelID == id }) {
+                return (workoutExercise, match)
+            }
+        }
+        return nil
+    }
+
+    private func advanceFocus() {
+        guard let current = focusedField,
+              let located = locateSet(for: current.setID)
+        else {
+            focusedField = nil
+            return
+        }
+
+        let sequence = SetField.sequence(
+            for: located.set,
+            loggingType: located.workoutExercise.exercise.loggingType
+        )
+
+        guard let index = sequence.firstIndex(of: current) else {
+            focusedField = nil
+            return
+        }
+
+        if index + 1 < sequence.count {
+            focusedField = sequence[index + 1]
+            return
+        }
+
+        let sortedSets = located.workoutExercise.sets.sorted { $0.order < $1.order }
+        if let setIndex = sortedSets.firstIndex(where: { $0.persistentModelID == located.set.persistentModelID }),
+           setIndex + 1 < sortedSets.count {
+            focusedField = SetField.sequence(
+                for: sortedSets[setIndex + 1],
+                loggingType: located.workoutExercise.exercise.loggingType
+            ).first
+        } else {
+            focusedField = nil
         }
     }
 

@@ -64,7 +64,9 @@ struct ExerciseProgressView: View {
         case .time:
             return "sec"
         case .distanceTime:
-            return selectedMetric == .primary ? "mi" : "min/mi"
+            return selectedMetric == .primary
+                ? unitSettings.distanceUnit.rawValue
+                : "min/\(unitSettings.distanceUnit.rawValue)"
         case .repsOnly:
             return "reps"
         }
@@ -114,12 +116,16 @@ struct ExerciseProgressView: View {
         case .distanceTime:
             if selectedMetric == .primary {
                 guard let maxDistance = instance.sets.map(\.distance).max(), maxDistance > 0 else { return nil }
-                return maxDistance
+                return unitSettings.distanceUnit.convert(fromMiles: maxDistance)
             } else {
-                // Pace = minutes per mile, using the best (fastest) set
+                // Pace = minutes per distance unit, using the best
+                // (fastest) set. Converting distance to the display unit
+                // before dividing keeps this correct in both mi and km,
+                // rather than always computing a per-mile pace.
                 let paces: [Double] = instance.sets.compactMap { set in
                     guard set.distance > 0, set.durationSeconds > 0 else { return nil }
-                    return (Double(set.durationSeconds) / 60) / set.distance
+                    let distance = unitSettings.distanceUnit.convert(fromMiles: set.distance)
+                    return (Double(set.durationSeconds) / 60) / distance
                 }
                 return paces.min()
             }

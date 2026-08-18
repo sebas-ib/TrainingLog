@@ -14,33 +14,63 @@ struct ExercisePickerView: View {
     
     @State private var searchText = ""
     @State private var showingNewExerciseSheet = false
-    
+    @State private var duplicateSuggestion: Exercise?
+
     let onSelect: (Exercise) -> Void
-    
+
     private var filteredExercises: [Exercise] {
         if searchText.isEmpty { return exercises }
         return exercises.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
-    
+
     private var exactMatchExists: Bool {
         exercises.contains { $0.name.localizedCaseInsensitiveCompare(searchText) == .orderedSame }
     }
-    
+
+    /// The closest existing exercise name to the current search text, if
+    /// it's close enough to plausibly be the same exercise — a typo or a
+    /// pluralization — rather than something genuinely different. Used
+    /// to nudge the user before they create a near-duplicate like
+    /// "Bicep Curl" alongside an existing "Bicep Curls".
+    private var duplicateCandidate: Exercise? {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 3, !exactMatchExists else { return nil }
+
+        return exercises
+            .map { ($0, $0.name.levenshteinDistance(to: trimmed)) }
+            .filter { _, distance in distance <= max(1, trimmed.count / 4) }
+            .min { $0.1 < $1.1 }?
+            .0
+    }
+
     private var groupedExercises: [MuscleGroup: [Exercise]] {
         Dictionary(grouping: filteredExercises, by: { $0.muscleGroup })
     }
-    
+
+    private var duplicateSuggestionBinding: Binding<Bool> {
+        Binding(
+            get: { duplicateSuggestion != nil },
+            set: { isPresented in
+                if !isPresented { duplicateSuggestion = nil }
+            }
+        )
+    }
+
     var body: some View {
         NavigationStack {
             List {
                 if !searchText.isEmpty && !exactMatchExists {
                     Button {
-                        showingNewExerciseSheet = true
+                        if let duplicateCandidate {
+                            duplicateSuggestion = duplicateCandidate
+                        } else {
+                            showingNewExerciseSheet = true
+                        }
                     } label: {
                         Label("Add \"\(searchText)\" as new exercise", systemImage: "plus.circle.fill")
                     }
                 }
-                
+
                 ForEach(MuscleGroup.allCases, id: \.self) { group in
                     if let groupExercises = groupedExercises[group], !groupExercises.isEmpty {
                         Section(group.rawValue) {
@@ -84,6 +114,22 @@ struct ExercisePickerView: View {
                     onSelect(exercise)
                     dismiss()
                 }
+            }
+            .confirmationDialog(
+                "Did you mean \"\(duplicateSuggestion?.name ?? "")\"?",
+                isPresented: duplicateSuggestionBinding,
+                presenting: duplicateSuggestion
+            ) { suggestion in
+                Button("Use \"\(suggestion.name)\"") {
+                    onSelect(suggestion)
+                    dismiss()
+                }
+                Button("Create \"\(searchText)\" Anyway") {
+                    showingNewExerciseSheet = true
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { suggestion in
+                Text("You already have \"\(suggestion.name)\" in your exercise library.")
             }
         }
     }

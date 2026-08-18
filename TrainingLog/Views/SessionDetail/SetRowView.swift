@@ -12,11 +12,45 @@ enum SetField: Hashable {
     case reps(PersistentIdentifier)
     case weight(PersistentIdentifier)
     case bodyWeightModifier(PersistentIdentifier)
-    case durationMinutes(PersistentIdentifier)
-    case durationSeconds(PersistentIdentifier)
+    case duration(PersistentIdentifier)
     case distance(PersistentIdentifier)
 }
 
+extension SetField {
+    /// The ordered sequence of input fields a set of this logging type
+    /// presents, in the order they should be visited. Drives the
+    /// keyboard's "next field" arrow, both for hopping within a row and
+    /// (via the first element) for jumping into the next set's first
+    /// field.
+    static func sequence(for set: ExerciseSet, loggingType: ExerciseLoggingType) -> [SetField] {
+        let id = set.persistentModelID
+        switch loggingType {
+        case .weightReps:
+            return [.reps(id), .weight(id)]
+        case .bodyweightReps:
+            return [.reps(id), .bodyWeightModifier(id)]
+        case .time:
+            return [.duration(id)]
+        case .timeWeight:
+            return [.duration(id), .weight(id)]
+        case .distanceTime:
+            return [.distance(id), .duration(id)]
+        case .repsOnly:
+            return [.reps(id)]
+        }
+    }
+
+    /// The set this field belongs to — lets a single, screen-level
+    /// keyboard toolbar look up which set/exercise is being edited
+    /// without every row needing its own toolbar.
+    var setID: PersistentIdentifier {
+        switch self {
+        case .reps(let id), .weight(let id), .bodyWeightModifier(let id),
+             .duration(let id), .distance(let id):
+            return id
+        }
+    }
+}
 
 // MARK: - Set Row
 
@@ -34,7 +68,7 @@ struct SetRowView: View {
     @State private var hasAppeared = false
     @State private var showFocusMode = false
     @State private var timer: Timer
-    
+
     init(
         set: ExerciseSet,
         loggingType: ExerciseLoggingType,
@@ -122,44 +156,43 @@ struct SetRowView: View {
         )
     }
 
-    private var distanceBinding: Binding<Double> {
+    private var displayDistance: Binding<Double> {
         Binding(
-            get: { set.distance },
+            get: {
+                unitSettings.distanceUnit.convert(fromMiles: set.distance)
+            },
             set: { newValue in
-                set.distance = max(0, newValue)
+                set.distance = max(
+                    0,
+                    unitSettings.distanceUnit.convertToMiles(newValue)
+                )
                 scheduleSave()
             }
         )
     }
 
-    // MARK: - Duration
-
-    private var durationMinutes: Binding<Int> {
+    private var durationBinding: Binding<Int> {
         Binding(
-            get: {
-                set.durationSeconds / 60
-            },
+            get: { set.durationSeconds },
             set: { newValue in
-                let seconds = set.durationSeconds % 60
-                set.durationSeconds = max(0, newValue) * 60 + seconds
+                set.durationSeconds = max(0, newValue)
                 timer.syncElapsed(to: set.durationSeconds)
                 scheduleSave()
             }
         )
     }
 
-    private var durationSecondsOnly: Binding<Int> {
-        Binding(
-            get: {
-                set.durationSeconds % 60
-            },
-            set: { newValue in
-                let minutes = set.durationSeconds / 60
-                set.durationSeconds = minutes * 60 + max(0, newValue)
-                timer.syncElapsed(to: set.durationSeconds)
-                scheduleSave()
-            }
-        )
+    // MARK: - Step Sizes
+
+    /// Plates typically move in 5 lb / 2.5 kg increments — close enough
+    /// for dumbbells and machines too, and still fully overridable by
+    /// typing an exact number.
+    private var weightStep: Double {
+        unitSettings.unit == .lbs ? 5 : 2.5
+    }
+
+    private var distanceStep: Double {
+        0.1
     }
 
     // MARK: - Previous Set
@@ -218,8 +251,12 @@ struct SetRowView: View {
             )
 
         case .distanceTime:
+            let distance = unitSettings.distanceUnit.convert(
+                fromMiles: previousSet.distance
+            )
+
             parts.append(
-                "\(String(format: "%.2f", previousSet.distance)) mi in \(formattedDuration(previousSet.durationSeconds))"
+                "\(String(format: "%.2f", distance)) \(unitSettings.distanceUnit.rawValue) in \(formattedDuration(previousSet.durationSeconds))"
             )
 
         case .repsOnly:
@@ -269,9 +306,7 @@ struct SetRowView: View {
             // leading padding, so together they doubled up instead of
             // sharing one aligned offset.
             HStack(spacing: 4) {
-                if let previousHint {
-                    previousSetButton(hint: previousHint)
-                }
+                fillOrClearButton
 
                 if isDurationBasedType {
                     targetAdjuster
@@ -404,12 +439,27 @@ struct SetRowView: View {
         )
     }
 
-    // MARK: - Previous Set
+    // MARK: - Fill / Clear
 
+    /// Toggles between "Fill with previous" (when this set's inputs are
+    /// still at their empty defaults) and "Clear" (once anything's been
+    /// entered — whether by auto-fill, this button, or typing). A set
+    /// that's just been created is auto-filled from the previous
+    /// session's matching set already, so this reads as "Clear" from the
+    /// start in the common case, and flips back to "Fill with previous"
+    /// once cleared.
     @ViewBuilder
-    private func previousSetButton(
-        hint: String
-    ) -> some View {
+    private var fillOrClearButton: some View {
+        if set.hasEmptyValues(loggingType: loggingType) {
+            if let previousHint {
+                previousSetButton(hint: previousHint)
+            }
+        } else {
+            clearSetButton
+        }
+    }
+
+    private func previousSetButton(hint: String) -> some View {
         Button {
             copyFromPrevious()
         } label: {
@@ -433,16 +483,42 @@ struct SetRowView: View {
             .background(
                 Capsule()
                     .fill(
-                        Color(Theme.accent )
+                        Color(Theme.accent)
                     )
             )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            "Copy last set: \(hint)"
+            "Fill with previous set: \(hint)"
         )
         .accessibilityHint(
             "Fills this set with the previous set's values"
+        )
+    }
+
+    private var clearSetButton: some View {
+        Button {
+            clearSet()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+
+                Text("Clear")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(Color(.secondarySystemBackground))
+            )
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .accessibilityLabel("Clear set")
+        .accessibilityHint(
+            "Removes the values entered for this set"
         )
     }
 
@@ -489,63 +565,41 @@ struct SetRowView: View {
         }
     }
 
-    // MARK: - Copy Previous
+    // MARK: - Copy Previous / Clear
 
     private func copyFromPrevious() {
         guard let previousSet else {
             return
         }
 
-        let generator =
-            UIImpactFeedbackGenerator(style: .light)
-
-        generator.impactOccurred()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
         withAnimation(
-            .spring(
-                response: 0.3,
-                dampingFraction: 0.7
-            )
+            .spring(response: 0.3, dampingFraction: 0.7)
         ) {
-            switch loggingType {
-            case .weightReps:
-                set.reps = previousSet.reps
-                set.weight = previousSet.weight
-
-            case .bodyweightReps:
-                set.reps = previousSet.reps
-                set.bodyWeightModifier =
-                    previousSet.bodyWeightModifier
-
-            case .time:
-                set.durationSeconds =
-                    previousSet.durationSeconds
-
-            case .timeWeight:
-                set.durationSeconds =
-                    previousSet.durationSeconds
-
-                set.weight =
-                    previousSet.weight
-
-            case .distanceTime:
-                set.distance =
-                    previousSet.distance
-
-                set.durationSeconds =
-                    previousSet.durationSeconds
-
-            case .repsOnly:
-                set.reps =
-                    previousSet.reps
-            }
+            set.copyValues(from: previousSet, loggingType: loggingType)
         }
 
-        // Copying a duration-based type bypasses the duration fields'
-        // own bindings, so the stopwatch engine needs the same sync
-        // those bindings do — otherwise starting the timer afterward
-        // would silently discard the copied value (see durationMinutes
-        // / durationSecondsOnly above).
+        // Copying a duration-based type bypasses the duration field's own
+        // binding, so the stopwatch engine needs the same sync that
+        // binding does — otherwise starting the timer afterward would
+        // silently discard the copied value.
+        if isDurationBasedType {
+            timer.syncElapsed(to: set.durationSeconds)
+        }
+
+        saveNow()
+    }
+
+    private func clearSet() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        withAnimation(
+            .spring(response: 0.3, dampingFraction: 0.7)
+        ) {
+            set.clearValues(loggingType: loggingType)
+        }
+
         if isDurationBasedType {
             timer.syncElapsed(to: set.durationSeconds)
         }
@@ -614,41 +668,79 @@ struct SetRowView: View {
         .accessibilityLabel(placeholder)
     }
 
-    // MARK: - Duration Fields
+    // MARK: - Stepper Fields
 
-    private func durationFields(
-        width: CGFloat = 40
+    /// A number field flanked by small +/- buttons — typing is still
+    /// available for exact or big-jump values, but small week-to-week
+    /// adjustments (a rep, a plate) don't need the keyboard at all.
+    private func steppedIntField(
+        _ placeholder: String,
+        value: Binding<Int>,
+        step: Int,
+        minValue: Int = 0,
+        fieldWidth: CGFloat,
+        focus: SetField
     ) -> some View {
-        HStack(spacing: 3) {
-            intField(
-                "Min",
-                value: durationMinutes,
-                width: width,
-                focus: .durationMinutes(
-                    set.persistentModelID
-                )
-            )
-            .disabled(timer.isRunning)
+        HStack(spacing: 2) {
+            miniStepButton(systemName: "minus") {
+                value.wrappedValue = max(minValue, value.wrappedValue - step)
+            }
 
-            Text(":")
-                .font(
-                    .system(
-                        size: 15,
-                        weight: .semibold
-                    )
-                )
-                .foregroundStyle(.secondary)
+            intField(placeholder, value: value, width: fieldWidth, focus: focus)
 
-            intField(
-                "Sec",
-                value: durationSecondsOnly,
-                width: width,
-                focus: .durationSeconds(
-                    set.persistentModelID
-                )
-            )
-            .disabled(timer.isRunning)
+            miniStepButton(systemName: "plus") {
+                value.wrappedValue += step
+            }
         }
+    }
+
+    private func steppedDoubleField(
+        _ placeholder: String,
+        value: Binding<Double>,
+        step: Double,
+        minValue: Double? = 0,
+        fieldWidth: CGFloat,
+        keyboard: UIKeyboardType,
+        focus: SetField
+    ) -> some View {
+        HStack(spacing: 2) {
+            miniStepButton(systemName: "minus") {
+                let next = value.wrappedValue - step
+                value.wrappedValue = minValue.map { Swift.max($0, next) } ?? next
+            }
+
+            doubleField(placeholder, value: value, width: fieldWidth, keyboard: keyboard, focus: focus)
+
+            miniStepButton(systemName: "plus") {
+                value.wrappedValue += step
+            }
+        }
+    }
+
+    private func miniStepButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
+            Image(systemName: systemName)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
+                .background(Circle().fill(Color(.secondarySystemBackground)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Duration Field
+
+    private var durationField: some View {
+        DigitStuffingDurationField(
+            totalSeconds: durationBinding,
+            isEnabled: !timer.isRunning,
+            focusedField: focusedField,
+            focusValue: .duration(set.persistentModelID)
+        )
+        .frame(width: 66, height: 34)
     }
 
     // MARK: - Timer Controls
@@ -722,10 +814,11 @@ struct SetRowView: View {
 
         case .weightReps:
             HStack(spacing: 5) {
-                intField(
+                steppedIntField(
                     "Reps",
                     value: repsBinding,
-                    width: 52,
+                    step: 1,
+                    fieldWidth: 34,
                     focus: .reps(
                         set.persistentModelID
                     )
@@ -734,10 +827,11 @@ struct SetRowView: View {
                 Text("×")
                     .foregroundStyle(.secondary)
 
-                doubleField(
+                steppedDoubleField(
                     "Weight",
                     value: displayWeight,
-                    width: 64,
+                    step: weightStep,
+                    fieldWidth: 46,
                     keyboard: .decimalPad,
                     focus: .weight(
                         set.persistentModelID
@@ -749,10 +843,11 @@ struct SetRowView: View {
 
         case .bodyweightReps:
             HStack(spacing: 5) {
-                intField(
+                steppedIntField(
                     "Reps",
                     value: repsBinding,
-                    width: 52,
+                    step: 1,
+                    fieldWidth: 34,
                     focus: .reps(
                         set.persistentModelID
                     )
@@ -762,10 +857,12 @@ struct SetRowView: View {
                     .foregroundStyle(.secondary)
                     .font(.caption)
 
-                doubleField(
+                steppedDoubleField(
                     "+/-",
                     value: displayBodyWeightModifier,
-                    width: 58,
+                    step: weightStep,
+                    minValue: nil,
+                    fieldWidth: 40,
                     keyboard: .numbersAndPunctuation,
                     focus: .bodyWeightModifier(
                         set.persistentModelID
@@ -777,19 +874,20 @@ struct SetRowView: View {
 
         case .time:
             HStack(spacing: 6) {
-                durationFields()
+                durationField
                 timerControls
             }
 
         case .timeWeight:
             HStack(spacing: 5) {
-                durationFields()
+                durationField
                 timerControls
 
-                doubleField(
+                steppedDoubleField(
                     "Weight",
                     value: displayWeight,
-                    width: 56,
+                    step: weightStep,
+                    fieldWidth: 44,
                     keyboard: .decimalPad,
                     focus: .weight(
                         set.persistentModelID
@@ -801,17 +899,18 @@ struct SetRowView: View {
 
         case .distanceTime:
             HStack(spacing: 5) {
-                doubleField(
-                    "Miles",
-                    value: distanceBinding,
-                    width: 58,
+                steppedDoubleField(
+                    "Distance",
+                    value: displayDistance,
+                    step: distanceStep,
+                    fieldWidth: 42,
                     keyboard: .decimalPad,
                     focus: .distance(
                         set.persistentModelID
                     )
                 )
 
-                Text("mi")
+                Text(unitSettings.distanceUnit.rawValue)
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -819,16 +918,17 @@ struct SetRowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                durationFields()
+                durationField
                 timerControls
             }
 
         case .repsOnly:
             HStack(spacing: 5) {
-                intField(
+                steppedIntField(
                     "Reps",
                     value: repsBinding,
-                    width: 58,
+                    step: 1,
+                    fieldWidth: 40,
                     focus: .reps(
                         set.persistentModelID
                     )

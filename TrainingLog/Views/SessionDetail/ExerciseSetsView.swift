@@ -27,7 +27,9 @@ struct ExerciseSetsView: View {
     }
     
     var body: some View {
-        ForEach(workoutExercise.sets.sorted(by: { $0.order < $1.order })) { set in
+        let sortedSets = workoutExercise.sets.sorted(by: { $0.order < $1.order })
+
+        ForEach(sortedSets, id: \.id) { set in
             SetRowView(
                 set: set,
                 loggingType: workoutExercise.exercise.loggingType,
@@ -36,7 +38,7 @@ struct ExerciseSetsView: View {
             )
         }
         .onDelete(perform: deleteSets)
-        
+
         Button {
             addSet()
         } label: {
@@ -44,10 +46,20 @@ struct ExerciseSetsView: View {
         }
         .font(.subheadline)
     }
-    
+
     private func addSet() {
         let nextOrder = (workoutExercise.sets.map(\.order).max() ?? 0) + 1
-        workoutExercise.sets.append(ExerciseSet(order: nextOrder))
+        let newSet = ExerciseSet(order: nextOrder)
+
+        // Auto-fill from the previous session's matching set, same as
+        // the row's own "Fill with previous" — the common case is
+        // repeating a set with the same numbers, so the row should start
+        // pre-filled (and offering "Clear") rather than empty.
+        if let template = previousSet(forOrder: nextOrder) {
+            newSet.copyValues(from: template, loggingType: workoutExercise.exercise.loggingType)
+        }
+
+        workoutExercise.sets.append(newSet)
         try? modelContext.save()
     }
     
