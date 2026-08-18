@@ -115,13 +115,7 @@ struct ConsistencyGraphView: View {
             }
         }
         .padding()
-        .background(
-            Color(uiColor: UIColor { traitCollection in
-                traitCollection.userInterfaceStyle == .dark
-                    ? UIColor.secondarySystemBackground
-                    : UIColor.tertiarySystemBackground
-            })
-        )
+        .background(Theme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     

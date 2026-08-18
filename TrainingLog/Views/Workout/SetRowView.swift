@@ -56,6 +56,7 @@ extension SetField {
 
 struct SetRowView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var unitSettings: UnitSettings
 
     @Bindable var set: ExerciseSet
@@ -299,6 +300,12 @@ struct SetRowView: View {
         }
     }
 
+    // MARK: - Row Background
+
+    private var backgroundColor: Color {
+        colorScheme == .light ? Color(.secondarySystemBackground) : Color(.tertiarySystemBackground)
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -434,7 +441,7 @@ struct SetRowView: View {
                     .fill(
                         set.takenToFailure
                         ? Color.orange.opacity(0.15)
-                        : Color(.secondarySystemBackground)
+                        : Color(backgroundColor)
                     )
             )
             .scaleEffect(
@@ -478,6 +485,7 @@ struct SetRowView: View {
                     systemName: "arrow.uturn.backward"
                 )
                 .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white)
 
                 Text(hint)
                     .font(
@@ -487,6 +495,7 @@ struct SetRowView: View {
                         )
                     )
                     .lineLimit(1)
+                    .foregroundStyle(.white)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -521,7 +530,7 @@ struct SetRowView: View {
             .padding(.vertical, 5)
             .background(
                 Capsule()
-                    .fill(Color(.secondarySystemBackground))
+                    .fill(Color(backgroundColor))
             )
         }
         .buttonStyle(.plain)
@@ -535,7 +544,7 @@ struct SetRowView: View {
     // MARK: - Target Adjuster
 
     private var targetAdjuster: some View {
-        HStack(spacing: 8) {
+        HStack {
             Button {
                 timer.adjustTarget(by: -5)
             } label: {
@@ -544,7 +553,7 @@ struct SetRowView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 20, height: 20)
                     .background(
-                        Circle().fill(Color(.secondarySystemBackground))
+                        Circle().fill(Color(backgroundColor))
                     )
             }
             .buttonStyle(.plain)
@@ -558,7 +567,7 @@ struct SetRowView: View {
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(.secondary)
             .monospacedDigit()
-            .frame(minWidth: 78, alignment: .leading)
+            .frame(minWidth: 78, alignment: .center)
 
             Button {
                 timer.adjustTarget(by: 5)
@@ -568,7 +577,7 @@ struct SetRowView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 20, height: 20)
                     .background(
-                        Circle().fill(Color(.secondarySystemBackground))
+                        Circle().fill(Color(backgroundColor))
                     )
             }
             .buttonStyle(.plain)
@@ -736,7 +745,7 @@ struct SetRowView: View {
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.secondary)
                 .frame(width: 20, height: 20)
-                .background(Circle().fill(Color(.secondarySystemBackground)))
+                .background(Circle().fill(Color(backgroundColor)))
         }
         .buttonStyle(.plain)
     }
@@ -793,7 +802,7 @@ struct SetRowView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 30, height: 30)
                     .background(
-                        Circle().fill(Color(.secondarySystemBackground))
+                        Circle().fill(Color(backgroundColor))
                     )
             }
             .buttonStyle(.plain)
@@ -808,7 +817,7 @@ struct SetRowView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 30, height: 30)
                     .background(
-                        Circle().fill(Color(.secondarySystemBackground))
+                        Circle().fill(Color(backgroundColor))
                     )
             }
             .buttonStyle(.plain)

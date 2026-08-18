@@ -100,13 +100,7 @@ struct HomeView: View {
                         }
                     }
                     .listRowInsets(EdgeInsets())
-                    .listRowBackground(
-                        Color(uiColor: UIColor { traitCollection in
-                            traitCollection.userInterfaceStyle == .dark
-                                ? UIColor.secondarySystemBackground
-                                : UIColor.tertiarySystemBackground
-                        })
-                    )
+                    .listRowBackground(Theme.cardBackground)
                     .padding()
                     .contentShape(Rectangle())
                     .gesture(
