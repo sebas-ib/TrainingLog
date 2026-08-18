@@ -71,6 +71,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Support/RestActivityAttributes.swift,
+				Support/Theme.swift,
 			);
 			target = E623D50E303212E8000BDA31 /* TrainingLogWidgetExtension */;
 		};
