@@ -23,11 +23,11 @@ struct ExerciseSetsView: View {
     }
     
     private func previousSet(forOrder order: Int) -> ExerciseSet? {
-        previousWorkoutExercise?.sets.sorted(by: { $0.order < $1.order }).first { $0.order == order }
+        previousWorkoutExercise?.sets.sortedByOrder().first { $0.order == order }
     }
-    
+
     var body: some View {
-        let sortedSets = workoutExercise.sets.sorted(by: { $0.order < $1.order })
+        let sortedSets = workoutExercise.sets.sortedByOrder()
 
         ForEach(sortedSets, id: \.id) { set in
             SetRowView(
@@ -65,7 +65,7 @@ struct ExerciseSetsView: View {
     }
     
     private func deleteSets(at offsets: IndexSet) {
-        let sorted = workoutExercise.sets.sorted(by: { $0.order < $1.order })
+        let sorted = workoutExercise.sets.sortedByOrder()
         for index in offsets {
             modelContext.delete(sorted[index])
         }
@@ -75,9 +75,9 @@ struct ExerciseSetsView: View {
         renumberSets()
         try? modelContext.save()
     }
-    
+
     private func renumberSets() {
-        let sorted = workoutExercise.sets.sorted(by: { $0.order < $1.order })
+        let sorted = workoutExercise.sets.sortedByOrder()
         for (index, set) in sorted.enumerated() {
             set.order = index + 1
         }

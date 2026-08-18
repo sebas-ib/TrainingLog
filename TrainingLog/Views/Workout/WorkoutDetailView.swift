@@ -29,7 +29,7 @@ struct WorkoutDetailView: View {
     /// array doesn't guarantee it preserves insertion order on its own,
     /// so `order` (set once, at creation) is what's actually trusted.
     private var sortedExercises: [WorkoutExercise] {
-        session.exercises.sorted { $0.order < $1.order }
+        session.exercises.sortedByOrder()
     }
 
     var body: some View {
@@ -191,38 +191,6 @@ struct WorkoutDetailView: View {
         }
     }
 
-    // MARK: - Keyboard Accessory
-
-    /// A single, screen-level keyboard toolbar shared by every set row —
-    /// only `focusedField` changing (not every keystroke) causes this to
-    /// re-render, which avoids the input-accessory-view churn a
-    /// per-row toolbar caused (each row re-rendering on every keystroke
-    /// briefly rebuilt the keyboard accessory, occasionally dropping
-    /// first responder before a digit-stuffing field like the duration
-    /// entry could register more than one keystroke).
-    private var keyboardAccessory: some View {
-        HStack {
-            Button("Done") {
-                focusedField = nil
-            }
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(Theme.accent)
-
-            Spacer()
-
-            Button {
-                advanceFocus()
-            } label: {
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 15, weight: .semibold))
-            }
-            .accessibilityLabel("Next field")
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
-    }
-
     /// Finds the set (and its owning exercise) a field belongs to,
     /// wherever it lives in the session — lets the keyboard's "next"
     /// arrow hop between sets, and even between exercises, from one
@@ -261,7 +229,7 @@ struct WorkoutDetailView: View {
             return
         }
 
-        let sortedSets = located.workoutExercise.sets.sorted { $0.order < $1.order }
+        let sortedSets = located.workoutExercise.sets.sortedByOrder()
         if let setIndex = sortedSets.firstIndex(where: { $0.persistentModelID == located.set.persistentModelID }),
            setIndex + 1 < sortedSets.count {
             focusedField = SetField.sequence(
@@ -287,7 +255,7 @@ struct WorkoutDetailView: View {
 
         let nextExercise = sortedExercises[exerciseIndex + 1]
 
-        guard let firstSet = nextExercise.sets.sorted(by: { $0.order < $1.order }).first else {
+        guard let firstSet = nextExercise.sets.sortedByOrder().first else {
             return nil
         }
 
@@ -323,9 +291,7 @@ struct WorkoutDetailView: View {
     }
     
     private var formattedRestTime: String {
-        let minutes = restTimer.remainingSeconds / 60
-        let seconds = restTimer.remainingSeconds % 60
-        return String(format: "%d:%02d", minutes, seconds)
+        DurationFormatting.minutesSeconds(restTimer.remainingSeconds)
     }
 
     // MARK: - Exercise Header

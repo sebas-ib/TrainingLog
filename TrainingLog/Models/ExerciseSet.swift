@@ -36,6 +36,8 @@ class ExerciseSet {
     }
 }
 
+extension ExerciseSet: Orderable {}
+
 // MARK: - Input Editing
 
 extension ExerciseSet {

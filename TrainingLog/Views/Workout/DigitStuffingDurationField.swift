@@ -38,8 +38,10 @@ struct DigitStuffingDurationField: View {
     var focusedField: FocusState<SetField?>.Binding
     var focusValue: SetField
 
+    /// The one piece of state this field owns — the 4-digit MMSS buffer.
+    /// The displayed/editable string is derived from it on demand rather
+    /// than tracked as its own separately-synced `@State`.
     @State private var digits: [Character]
-    @State private var text: String
 
     init(
         totalSeconds: Binding<Int>,
@@ -53,14 +55,24 @@ struct DigitStuffingDurationField: View {
         self.fontSize = fontSize
         self.focusedField = focusedField
         self.focusValue = focusValue
+        self._digits = State(initialValue: Self.digitsFor(totalSeconds.wrappedValue))
+    }
 
-        let initialDigits = Self.digitsFor(totalSeconds.wrappedValue)
-        self._digits = State(initialValue: initialDigits)
-        self._text = State(initialValue: Self.format(digits: initialDigits))
+    /// The field's displayed/editable text, derived from `digits`. Get/set
+    /// `Binding` rather than a separate `@State` string kept in sync via
+    /// `.onChange` — matches how SetRowView already binds its other
+    /// fields (`durationBinding`, `displayWeight`, ...), and means the
+    /// setter only ever runs on a genuine edit instead of needing to
+    /// filter out its own echoed writes.
+    private var text: Binding<String> {
+        Binding(
+            get: { Self.format(digits: digits) },
+            set: { newValue in handleTextChange(to: newValue) }
+        )
     }
 
     var body: some View {
-        TextField("0:00", text: $text)
+        TextField("0:00", text: text)
             .keyboardType(.numberPad)
             .textFieldStyle(.plain)
             .font(.system(size: fontSize, weight: .semibold))
@@ -69,22 +81,16 @@ struct DigitStuffingDurationField: View {
             .disabled(!isEnabled)
             .focused(focusedField, equals: focusValue)
             .accessibilityLabel("Duration")
-            .onChange(of: text) { oldValue, newValue in
-                handleTextChange(from: oldValue, to: newValue)
-            }
             .onChange(of: totalSeconds) { _, newValue in
                 syncFromExternal(newValue)
             }
     }
 
     /// Interprets a raw text-field edit as either "one digit typed" or
-    /// "backspace," updates the digit buffer accordingly, and writes the
-    /// reformatted canonical string back — which re-triggers this same
-    /// handler once more, but the guard below recognizes that echo (it
-    /// already matches what the buffer would produce) and no-ops.
-    private func handleTextChange(from oldValue: String, to newValue: String) {
-        let expected = Self.format(digits: digits)
-        guard newValue != expected else { return }
+    /// "backspace" and updates the digit buffer accordingly.
+    private func handleTextChange(to newValue: String) {
+        let oldValue = Self.format(digits: digits)
+        guard newValue != oldValue else { return }
 
         if newValue.count < oldValue.count {
             // Backspace — shift right, refill the front with a zero,
@@ -95,14 +101,13 @@ struct DigitStuffingDurationField: View {
         } else {
             // Couldn't confidently interpret the edit (e.g. a paste, or
             // a mid-string replacement) — digit-stuffing doesn't have a
-            // meaningful notion of "replace this character," so just
-            // snap back to the last valid value instead of guessing.
-            text = expected
+            // meaningful notion of "replace this character," so `digits`
+            // is left untouched; the field just shows its last valid
+            // value again instead of guessing.
             return
         }
 
         let seconds = Self.seconds(from: digits)
-        text = Self.format(digits: digits)
         if seconds != totalSeconds {
             totalSeconds = seconds
         }
@@ -114,7 +119,6 @@ struct DigitStuffingDurationField: View {
     private func syncFromExternal(_ seconds: Int) {
         guard seconds != Self.seconds(from: digits) else { return }
         digits = Self.digitsFor(seconds)
-        text = Self.format(digits: digits)
     }
 
     /// The single character that turns `old` into `new`, assuming
@@ -153,7 +157,6 @@ struct DigitStuffingDurationField: View {
     }
 
     private static func format(digits: [Character]) -> String {
-        let seconds = seconds(from: digits)
-        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+        DurationFormatting.minutesSeconds(seconds(from: digits))
     }
 }

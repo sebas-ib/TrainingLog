@@ -131,7 +131,7 @@ struct TimerOverlayView: View {
                     .animation(.linear(duration: 0.2), value: progress)
             }
 
-            Text(Self.formattedDuration(displaySeconds))
+            Text(DurationFormatting.minutesSeconds(displaySeconds))
                 .font(.system(size: 64, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(timer.hasCrossedTarget ? .green : .primary)
@@ -151,7 +151,7 @@ struct TimerOverlayView: View {
                 }
                 .disabled(mode == .restCountdown && timer.targetSeconds <= mode.adjustStep)
 
-                Text("\(mode.targetLabel) \(Self.formattedDuration(timer.targetSeconds))")
+                Text("\(mode.targetLabel) \(DurationFormatting.minutesSeconds(timer.targetSeconds))")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
@@ -241,13 +241,5 @@ struct TimerOverlayView: View {
                 timer.isRunning ? "Pause \(mode.accessibilityContext)" : "Start \(mode.accessibilityContext)"
             )
         }
-    }
-
-    // MARK: - Formatting
-
-    private static func formattedDuration(_ totalSeconds: Int) -> String {
-        let minutes = totalSeconds / 60
-        let seconds = totalSeconds % 60
-        return String(format: "%d:%02d", minutes, seconds)
     }
 }

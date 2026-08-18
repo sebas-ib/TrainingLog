@@ -242,7 +242,7 @@ struct SetRowView: View {
 
         case .time:
             parts.append(
-                formattedDuration(previousSet.durationSeconds)
+                DurationFormatting.minutesSeconds(previousSet.durationSeconds)
             )
 
         case .timeWeight:
@@ -251,7 +251,7 @@ struct SetRowView: View {
             )
 
             parts.append(
-                "\(formattedDuration(previousSet.durationSeconds)) @ \(String(format: "%.0f", weight)) \(unitSettings.unit.rawValue)"
+                "\(DurationFormatting.minutesSeconds(previousSet.durationSeconds)) @ \(String(format: "%.0f", weight)) \(unitSettings.unit.rawValue)"
             )
 
         case .distanceTime:
@@ -260,7 +260,7 @@ struct SetRowView: View {
             )
 
             parts.append(
-                "\(String(format: "%.2f", distance)) \(unitSettings.distanceUnit.rawValue) in \(formattedDuration(previousSet.durationSeconds))"
+                "\(String(format: "%.2f", distance)) \(unitSettings.distanceUnit.rawValue) in \(DurationFormatting.minutesSeconds(previousSet.durationSeconds))"
             )
 
         case .repsOnly:
@@ -272,17 +272,6 @@ struct SetRowView: View {
         }
 
         return parts.joined(separator: " · ")
-    }
-
-    private func formattedDuration(_ totalSeconds: Int) -> String {
-        let minutes = totalSeconds / 60
-        let seconds = totalSeconds % 60
-
-        return String(
-            format: "%d:%02d",
-            minutes,
-            seconds
-        )
     }
 
     /// Identifies this set's timer in the Live Activity / Dynamic Island
@@ -556,7 +545,7 @@ struct SetRowView: View {
 
             Text(
                 timer.targetSeconds > 0
-                    ? "Target \(formattedDuration(timer.targetSeconds))"
+                    ? "Target \(DurationFormatting.minutesSeconds(timer.targetSeconds))"
                     : "No target"
             )
             .font(.system(size: 11, weight: .medium))
