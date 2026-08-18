@@ -12,28 +12,30 @@ import SwiftUI
 struct TrainingLogWidgetLiveActivity: Widget {
 
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: RestActivityAttributes.self) { context in
+        ActivityConfiguration(for: WorkoutTimerAttributes.self) { context in
 
             // MARK: - Lock Screen
 
-            LockScreenRestView(context: context)
+            LockScreenTimerView(context: context)
 
         } dynamicIsland: { context in
 
             // MARK: - Dynamic Island
 
+            let isSetTimer = context.attributes.kind == .setTimer
             let isDone = Self.isDone(context)
 
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 8) {
-                        Image(systemName: isDone ? "checkmark.circle.fill" : "timer")
+                        Image(systemName: Self.leadingIcon(context))
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(isDone ? .green : Theme.accent)
 
-                        Text(isDone ? "Done" : "Resting")
+                        Text(Self.title(context))
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(isDone ? .green : .primary)
+                            .lineLimit(1)
                     }
                 }
 
@@ -49,7 +51,7 @@ struct TrainingLogWidgetLiveActivity: Widget {
                                 .foregroundStyle(.tertiary)
                         }
                     } else {
-                        Text(timerInterval: Date.now...context.state.endDate, countsDown: true)
+                        Text(timerInterval: Self.textInterval(context), countsDown: !isSetTimer)
                             .font(.system(size: 22, weight: .bold, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(Theme.accent)
@@ -57,15 +59,15 @@ struct TrainingLogWidgetLiveActivity: Widget {
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
-                    if !isDone {
+                    if !isDone, let ringInterval = Self.ringInterval(context) {
                         VStack(spacing: 5) {
                             ProgressView(
-                                timerInterval: context.attributes.startedAt...context.state.endDate,
+                                timerInterval: ringInterval,
                                 countsDown: false
                             )
                             .tint(Theme.accent)
 
-                            Text("Target \(Self.formatted(Self.currentTargetSeconds(context)))")
+                            Text("Target \(Self.formatted(context.attributes.targetSeconds))")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
                         }
@@ -73,7 +75,7 @@ struct TrainingLogWidgetLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: isDone ? "checkmark.circle.fill" : "timer")
+                Image(systemName: Self.leadingIcon(context))
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(isDone ? .green : Theme.accent)
             } compactTrailing: {
@@ -82,14 +84,14 @@ struct TrainingLogWidgetLiveActivity: Widget {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(.green)
                 } else {
-                    Text(timerInterval: Date.now...context.state.endDate, countsDown: true)
+                    Text(timerInterval: Self.textInterval(context), countsDown: !isSetTimer)
                         .font(.system(size: 14, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(Theme.accent)
                         .frame(width: 44, alignment: .trailing)
                 }
             } minimal: {
-                Image(systemName: isDone ? "checkmark.circle.fill" : "timer")
+                Image(systemName: Self.leadingIcon(context))
                     .foregroundStyle(isDone ? .green : Theme.accent)
             }
             .keylineTint(isDone ? .green : Theme.accent)
@@ -98,33 +100,70 @@ struct TrainingLogWidgetLiveActivity: Widget {
 
     // MARK: - Shared Helpers
 
-    /// Whether the rest period should be presented as finished.
+    /// Whether the activity should be presented as finished. Only a rest
+    /// countdown ever reaches "done" — a set stopwatch has no finish
+    /// line, it just keeps counting until the app pauses or resets it.
     ///
     /// This used to be `context.state.isCompleted || context.isStale`.
     /// `isCompleted` is only ever set by the app explicitly calling
-    /// `RestActivityManager.complete()` — which requires the app's own
-    /// `Timer` polling loop to still be executing to notice the target
-    /// was crossed. But locking the phone (or switching away) mid-rest —
-    /// the single most common way to use a rest timer — suspends that
-    /// loop, so the app can silently miss the crossing entirely until
-    /// it's reopened. `context.isStale` was meant to cover exactly this
-    /// via the activity's `staleDate`, but its refresh timing is
-    /// system-scheduled and not always prompt, which is why "Done"
-    /// sometimes never showed even though the countdown had reached
-    /// zero. Adding a direct comparison against `endDate` makes the
-    /// "done" state derivable from wall-clock time alone, independent of
-    /// whether the app or the system got around to flagging it.
-    static func isDone(_ context: ActivityViewContext<RestActivityAttributes>) -> Bool {
-        context.state.isCompleted || context.isStale || context.state.endDate <= Date()
+    /// `WorkoutTimerActivityManager.complete()` — which requires the
+    /// app's own `Timer` polling loop to still be executing to notice
+    /// the target was crossed. But locking the phone (or switching away)
+    /// mid-rest — the single most common way to use a rest timer —
+    /// suspends that loop, so the app can silently miss the crossing
+    /// entirely until it's reopened. `context.isStale` was meant to
+    /// cover exactly this via the activity's `staleDate`, but its
+    /// refresh timing is system-scheduled and not always prompt, which
+    /// is why "Done" sometimes never showed even though the countdown
+    /// had reached zero. Adding a direct comparison against `endDate`
+    /// makes the "done" state derivable from wall-clock time alone,
+    /// independent of whether the app or the system got around to
+    /// flagging it.
+    static func isDone(_ context: ActivityViewContext<WorkoutTimerAttributes>) -> Bool {
+        guard context.attributes.kind == .restCountdown else { return false }
+        return context.state.isCompleted || context.isStale || context.state.endDate <= Date()
     }
 
-    /// The rest target currently in effect, in seconds. Derived from
-    /// `endDate - startedAt` rather than `attributes.targetSeconds`,
-    /// since `targetSeconds` is fixed at activity creation and won't
-    /// reflect the user nudging the target up/down mid-rest (that only
-    /// updates `state.endDate`).
-    static func currentTargetSeconds(_ context: ActivityViewContext<RestActivityAttributes>) -> Int {
-        max(0, Int(context.state.endDate.timeIntervalSince(context.attributes.startedAt)))
+    static func leadingIcon(_ context: ActivityViewContext<WorkoutTimerAttributes>) -> String {
+        if isDone(context) { return "checkmark.circle.fill" }
+        return context.attributes.kind == .setTimer ? "stopwatch" : "timer"
+    }
+
+    static func title(_ context: ActivityViewContext<WorkoutTimerAttributes>) -> String {
+        if isDone(context) { return "Done" }
+        switch context.attributes.kind {
+        case .restCountdown: return "Resting"
+        case .setTimer: return context.attributes.label ?? "Timing"
+        }
+    }
+
+    /// The interval fed to `Text(timerInterval:)` — counts down to
+    /// `endDate` for a rest countdown, or counts up from the stopwatch's
+    /// true start for a set timer (its `endDate` is just a distant
+    /// ceiling to satisfy the API, not a real deadline).
+    static func textInterval(_ context: ActivityViewContext<WorkoutTimerAttributes>) -> ClosedRange<Date> {
+        switch context.attributes.kind {
+        case .restCountdown:
+            return Date.now...context.state.endDate
+        case .setTimer:
+            return context.attributes.startedAt...context.state.endDate
+        }
+    }
+
+    /// The interval behind the progress ring, when there's a target to
+    /// show progress toward — nil (no ring) otherwise.
+    static func ringInterval(_ context: ActivityViewContext<WorkoutTimerAttributes>) -> ClosedRange<Date>? {
+        guard context.attributes.targetSeconds > 0 else { return nil }
+
+        switch context.attributes.kind {
+        case .restCountdown:
+            return context.attributes.startedAt...context.state.endDate
+        case .setTimer:
+            let crossDate = context.attributes.startedAt.addingTimeInterval(
+                TimeInterval(context.attributes.targetSeconds)
+            )
+            return context.attributes.startedAt...crossDate
+        }
     }
 
     static func formatted(_ totalSeconds: Int) -> String {
@@ -136,15 +175,27 @@ struct TrainingLogWidgetLiveActivity: Widget {
 
 // MARK: - Lock Screen
 
-private struct LockScreenRestView: View {
-    let context: ActivityViewContext<RestActivityAttributes>
+private struct LockScreenTimerView: View {
+    let context: ActivityViewContext<WorkoutTimerAttributes>
 
     private var isDone: Bool {
         TrainingLogWidgetLiveActivity.isDone(context)
     }
 
-    private var targetLabel: String {
-        "Target \(TrainingLogWidgetLiveActivity.formatted(TrainingLogWidgetLiveActivity.currentTargetSeconds(context)))"
+    private var isSetTimer: Bool {
+        context.attributes.kind == .setTimer
+    }
+
+    private var targetLabel: String? {
+        guard context.attributes.targetSeconds > 0 else { return nil }
+        return "Target \(TrainingLogWidgetLiveActivity.formatted(context.attributes.targetSeconds))"
+    }
+
+    private var subtitle: String {
+        if isSetTimer {
+            return context.attributes.label ?? "Timing"
+        }
+        return targetLabel ?? "Rest"
     }
 
     var body: some View {
@@ -154,7 +205,7 @@ private struct LockScreenRestView: View {
                     .fill(isDone ? Color.green.opacity(0.15) : Theme.accent.opacity(0.15))
                     .frame(width: 44, height: 44)
 
-                Image(systemName: isDone ? "checkmark" : "timer")
+                Image(systemName: TrainingLogWidgetLiveActivity.leadingIcon(context))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(isDone ? .green : Theme.accent)
             }
@@ -176,27 +227,35 @@ private struct LockScreenRestView: View {
                     .foregroundStyle(.tertiary)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(targetLabel)
+                    Text(subtitle)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
 
-                    Text(timerInterval: Date.now...context.state.endDate, countsDown: true)
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
+                    Text(
+                        timerInterval: TrainingLogWidgetLiveActivity.textInterval(context),
+                        countsDown: !isSetTimer
+                    )
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+
+                    if isSetTimer, let targetLabel {
+                        Text(targetLabel)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer()
 
-                ProgressView(
-                    timerInterval: context.attributes.startedAt...context.state.endDate,
-                    countsDown: false
-                )
-                .progressViewStyle(.circular)
-                .tint(Theme.accent)
-                .frame(width: 34, height: 34)
+                if let ringInterval = TrainingLogWidgetLiveActivity.ringInterval(context) {
+                    ProgressView(timerInterval: ringInterval, countsDown: false)
+                        .progressViewStyle(.circular)
+                        .tint(Theme.accent)
+                        .frame(width: 34, height: 34)
+                }
             }
         }
         .padding(16)
@@ -206,7 +265,7 @@ private struct LockScreenRestView: View {
         .accessibilityLabel(
             isDone
                 ? "Rest complete. Tap to return to your workout."
-                : "Resting, \(targetLabel.lowercased())"
+                : (isSetTimer ? "\(subtitle) timer running" : "Resting, \(subtitle.lowercased())")
         )
     }
 }

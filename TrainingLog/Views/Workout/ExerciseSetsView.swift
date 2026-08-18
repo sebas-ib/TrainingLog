@@ -33,6 +33,7 @@ struct ExerciseSetsView: View {
             SetRowView(
                 set: set,
                 loggingType: workoutExercise.exercise.loggingType,
+                exerciseName: workoutExercise.exercise.name,
                 focusedField: focusedField,
                 previousSet: previousSet(forOrder: set.order)
             )

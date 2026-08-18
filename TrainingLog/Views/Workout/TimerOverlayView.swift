@@ -41,6 +41,10 @@ struct TimerOverlayView: View {
 
     let timer: Timer
     let mode: Mode
+    /// Identifies the set being timed, e.g. "Plank · Set 2" — shown in
+    /// the Live Activity while `mode == .setFocusStopwatch`. Unused for
+    /// `.restCountdown`.
+    var label: String = ""
 
     private var displaySeconds: Int {
         switch mode {
@@ -189,7 +193,7 @@ struct TimerOverlayView: View {
                 if mode == .restCountdown {
                     timer.resetRestCountdown()
                 } else {
-                    timer.reset()
+                    timer.resetSetTimer()
                 }
             } label: {
                 Image(systemName: "arrow.counterclockwise")
@@ -206,13 +210,13 @@ struct TimerOverlayView: View {
                     if mode == .restCountdown {
                         timer.pauseRestCountdown()
                     } else {
-                        timer.pause()
+                        timer.pauseSetTimer()
                     }
                 } else {
                     if mode == .restCountdown {
                         timer.startRestCountdown()
                     } else {
-                        timer.start()
+                        timer.startSetTimer(label: label)
                     }
                 }
             } label: {

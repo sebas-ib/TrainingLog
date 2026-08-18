@@ -61,6 +61,7 @@ struct SetRowView: View {
     @Bindable var set: ExerciseSet
 
     let loggingType: ExerciseLoggingType
+    let exerciseName: String
     var focusedField: FocusState<SetField?>.Binding
     var previousSet: ExerciseSet?
 
@@ -72,11 +73,13 @@ struct SetRowView: View {
     init(
         set: ExerciseSet,
         loggingType: ExerciseLoggingType,
+        exerciseName: String,
         focusedField: FocusState<SetField?>.Binding,
         previousSet: ExerciseSet? = nil
     ) {
         self.set = set
         self.loggingType = loggingType
+        self.exerciseName = exerciseName
         self.focusedField = focusedField
         self.previousSet = previousSet
 
@@ -281,6 +284,12 @@ struct SetRowView: View {
         )
     }
 
+    /// Identifies this set's timer in the Live Activity / Dynamic Island
+    /// while the app is backgrounded, e.g. "Plank · Set 2".
+    private var timerLabel: String {
+        "\(exerciseName) · Set \(set.order)"
+    }
+
     private var isDurationBasedType: Bool {
         switch loggingType {
         case .time, .timeWeight, .distanceTime:
@@ -355,7 +364,8 @@ struct SetRowView: View {
         .fullScreenCover(isPresented: $showFocusMode) {
             TimerOverlayView(
                 timer: timer,
-                mode: .setFocusStopwatch
+                mode: .setFocusStopwatch,
+                label: timerLabel
             )
         }
     }
@@ -748,7 +758,7 @@ struct SetRowView: View {
     private var timerControls: some View {
         HStack(spacing: 6) {
             Button {
-                timer.isRunning ? timer.pause() : timer.start()
+                timer.isRunning ? timer.pauseSetTimer() : timer.startSetTimer(label: timerLabel)
             } label: {
                 Image(
                     systemName: timer.isRunning
@@ -773,7 +783,7 @@ struct SetRowView: View {
             )
 
             Button {
-                timer.reset()
+                timer.resetSetTimer()
             } label: {
                 // arrow.counterclockwise instead of a stop square — the
                 // action clears the field back to 0, so the icon should

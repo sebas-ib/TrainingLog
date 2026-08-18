@@ -70,7 +70,7 @@
 		E623D53430321685000BDA31 /* Exceptions for "TrainingLog" folder in "TrainingLogWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Support/RestActivityAttributes.swift,
+				Support/WorkoutTimerAttributes.swift,
 				Support/Theme.swift,
 			);
 			target = E623D50E303212E8000BDA31 /* TrainingLogWidgetExtension */;
