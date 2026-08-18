@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E623D512303212E8000BDA31 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E623D511303212E8000BDA31 /* WidgetKit.framework */; };
+		E623D514303212E8000BDA31 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E623D513303212E8000BDA31 /* SwiftUI.framework */; };
+		E623D521303212EF000BDA31 /* TrainingLogWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E623D50F303212E8000BDA31 /* TrainingLogWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E623D308303140FF000BDA31 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,17 +27,61 @@
 			remoteGlobalIDString = E623D2F7303140FA000BDA31;
 			remoteInfo = TrainingLog;
 		};
+		E623D51F303212EF000BDA31 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E623D2F0303140FA000BDA31 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E623D50E303212E8000BDA31;
+			remoteInfo = TrainingLogWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		E623D522303212EF000BDA31 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				E623D521303212EF000BDA31 /* TrainingLogWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		E623D2F8303140FA000BDA31 /* TrainingLog.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrainingLog.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E623D307303140FF000BDA31 /* TrainingLogTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrainingLogTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E623D311303140FF000BDA31 /* TrainingLogUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrainingLogUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E623D50F303212E8000BDA31 /* TrainingLogWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TrainingLogWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		E623D511303212E8000BDA31 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		E623D513303212E8000BDA31 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E623D525303212EF000BDA31 /* Exceptions for "TrainingLogWidget" folder in "TrainingLogWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = E623D50E303212E8000BDA31 /* TrainingLogWidgetExtension */;
+		};
+		E623D53430321685000BDA31 /* Exceptions for "TrainingLog" folder in "TrainingLogWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Support/RestActivityAttributes.swift,
+			);
+			target = E623D50E303212E8000BDA31 /* TrainingLogWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E623D2FA303140FA000BDA31 /* TrainingLog */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E623D53430321685000BDA31 /* Exceptions for "TrainingLog" folder in "TrainingLogWidgetExtension" target */,
+			);
 			path = TrainingLog;
 			sourceTree = "<group>";
 		};
@@ -43,6 +93,14 @@
 		E623D314303140FF000BDA31 /* TrainingLogUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = TrainingLogUITests;
+			sourceTree = "<group>";
+		};
+		E623D515303212E8000BDA31 /* TrainingLogWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E623D525303212EF000BDA31 /* Exceptions for "TrainingLogWidget" folder in "TrainingLogWidgetExtension" target */,
+			);
+			path = TrainingLogWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,6 +127,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E623D50C303212E8000BDA31 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E623D514303212E8000BDA31 /* SwiftUI.framework in Frameworks */,
+				E623D512303212E8000BDA31 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -78,6 +145,8 @@
 				E623D2FA303140FA000BDA31 /* TrainingLog */,
 				E623D30A303140FF000BDA31 /* TrainingLogTests */,
 				E623D314303140FF000BDA31 /* TrainingLogUITests */,
+				E623D515303212E8000BDA31 /* TrainingLogWidget */,
+				E623D510303212E8000BDA31 /* Frameworks */,
 				E623D2F9303140FA000BDA31 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,8 +157,18 @@
 				E623D2F8303140FA000BDA31 /* TrainingLog.app */,
 				E623D307303140FF000BDA31 /* TrainingLogTests.xctest */,
 				E623D311303140FF000BDA31 /* TrainingLogUITests.xctest */,
+				E623D50F303212E8000BDA31 /* TrainingLogWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		E623D510303212E8000BDA31 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				E623D511303212E8000BDA31 /* WidgetKit.framework */,
+				E623D513303212E8000BDA31 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -102,10 +181,12 @@
 				E623D2F4303140FA000BDA31 /* Sources */,
 				E623D2F5303140FA000BDA31 /* Frameworks */,
 				E623D2F6303140FA000BDA31 /* Resources */,
+				E623D522303212EF000BDA31 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				E623D520303212EF000BDA31 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				E623D2FA303140FA000BDA31 /* TrainingLog */,
@@ -163,6 +244,28 @@
 			productReference = E623D311303140FF000BDA31 /* TrainingLogUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		E623D50E303212E8000BDA31 /* TrainingLogWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E623D526303212EF000BDA31 /* Build configuration list for PBXNativeTarget "TrainingLogWidgetExtension" */;
+			buildPhases = (
+				E623D50B303212E8000BDA31 /* Sources */,
+				E623D50C303212E8000BDA31 /* Frameworks */,
+				E623D50D303212E8000BDA31 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E623D515303212E8000BDA31 /* TrainingLogWidget */,
+			);
+			name = TrainingLogWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = TrainingLogWidgetExtension;
+			productReference = E623D50F303212E8000BDA31 /* TrainingLogWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +287,9 @@
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = E623D2F7303140FA000BDA31;
 					};
+					E623D50E303212E8000BDA31 = {
+						CreatedOnToolsVersion = 26.5;
+					};
 				};
 			};
 			buildConfigurationList = E623D2F3303140FA000BDA31 /* Build configuration list for PBXProject "TrainingLog" */;
@@ -203,6 +309,7 @@
 				E623D2F7303140FA000BDA31 /* TrainingLog */,
 				E623D306303140FF000BDA31 /* TrainingLogTests */,
 				E623D310303140FF000BDA31 /* TrainingLogUITests */,
+				E623D50E303212E8000BDA31 /* TrainingLogWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +330,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E623D30F303140FF000BDA31 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E623D50D303212E8000BDA31 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +367,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E623D50B303212E8000BDA31 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +386,11 @@
 			isa = PBXTargetDependency;
 			target = E623D2F7303140FA000BDA31 /* TrainingLog */;
 			targetProxy = E623D312303140FF000BDA31 /* PBXContainerItemProxy */;
+		};
+		E623D520303212EF000BDA31 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E623D50E303212E8000BDA31 /* TrainingLogWidgetExtension */;
+			targetProxy = E623D51F303212EF000BDA31 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -398,6 +524,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -442,6 +569,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -575,6 +703,71 @@
 			};
 			name = Release;
 		};
+		E623D523303212EF000BDA31 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y88FN7D36Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrainingLogWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TrainingLogWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sibarraperez.TrainingLog.TrainingLogWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E623D524303212EF000BDA31 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y88FN7D36Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrainingLogWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TrainingLogWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sibarraperez.TrainingLog.TrainingLogWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -610,6 +803,15 @@
 			buildConfigurations = (
 				E623D322303140FF000BDA31 /* Debug */,
 				E623D323303140FF000BDA31 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E623D526303212EF000BDA31 /* Build configuration list for PBXNativeTarget "TrainingLogWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E623D523303212EF000BDA31 /* Debug */,
+				E623D524303212EF000BDA31 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

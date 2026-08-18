@@ -463,6 +463,51 @@ final class WorkoutCalculationsTests: XCTestCase {
         XCTAssertEqual(result[.back], 800)
     }
 
+    func testVolumeByMuscleGroupOmitsExercisesWithoutWeight() {
+        let bodyweightExercise = makeWorkoutExercise(
+            muscleGroup: .back,
+            loggingType: .bodyweightReps,
+            sets: [
+                makeSet(reps: 10)
+            ]
+        )
+
+        let timeExercise = makeWorkoutExercise(
+            muscleGroup: .core,
+            loggingType: .time,
+            sets: [
+                makeSet()
+            ]
+        )
+
+        let weightedExercise = makeWorkoutExercise(
+            muscleGroup: .chest,
+            sets: [
+                makeSet(reps: 10, weight: 100)
+            ]
+        )
+
+        let session = makeSession(
+            exercises: [
+                bodyweightExercise,
+                timeExercise,
+                weightedExercise
+            ]
+        )
+
+        let result = WorkoutCalculations.volumeByMuscleGroup(
+            for: session
+        )
+
+        // A muscle group trained only through a no-weight logging type
+        // (bodyweight, time, distance, reps-only) shouldn't appear at
+        // all — a "0 lbs" entry would misrepresent it as untrained.
+        XCTAssertNil(result[.back])
+        XCTAssertNil(result[.core])
+        XCTAssertEqual(result[.chest], 1000)
+        XCTAssertEqual(result.count, 1)
+    }
+
     func testVolumeByMuscleGroupCombinesSameMuscleGroup() {
         let firstChestExercise = makeWorkoutExercise(
             muscleGroup: .chest,

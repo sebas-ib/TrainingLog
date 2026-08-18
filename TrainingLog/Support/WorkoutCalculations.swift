@@ -73,16 +73,21 @@ enum WorkoutCalculations {
         return result
     }
     
-    /// Total volume broken down by muscle group for a session
+    /// Total volume broken down by muscle group for a session.
+    /// Exercises that don't use weight (bodyweight, time, distance, reps-only
+    /// types) contribute 0 and are skipped entirely, rather than showing up
+    /// as a misleading "0 lbs" entry for a muscle group that was still
+    /// actually trained.
     static func volumeByMuscleGroup(for session: WorkoutSession) -> [MuscleGroup: Double] {
         var result: [MuscleGroup: Double] = [:]
-        
+
         for workoutExercise in session.exercises {
-            let group = workoutExercise.exercise.muscleGroup
             let exerciseVolume = volume(for: workoutExercise)
+            guard exerciseVolume > 0 else { continue }
+            let group = workoutExercise.exercise.muscleGroup
             result[group, default: 0] += exerciseVolume
         }
-        
+
         return result
     }
     

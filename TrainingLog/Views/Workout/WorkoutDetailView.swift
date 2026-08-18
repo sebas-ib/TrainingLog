@@ -18,7 +18,13 @@ struct WorkoutDetailView: View {
     @State private var renameText = ""
 
     @FocusState private var focusedField: SetField?
-
+    
+    @State private var showingRestTimer = false
+    @State private var restTimer = Timer(
+        initialSeconds: 0,
+        targetSeconds: 90
+    )
+    
     var body: some View {
         ZStack(alignment: .bottom) {
             List {
@@ -68,13 +74,23 @@ struct WorkoutDetailView: View {
 
             // Floats above the List, outside its layout system,
             // so keyboard avoidance can't push it around.
-            addExerciseButton
-        }
+            VStack(spacing: 8) {
+                restTimerButton
+                addExerciseButton
+            }        }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .sheet(isPresented: $showingExercisePicker) {
             ExercisePickerView { selectedExercise in
                 addExercise(selectedExercise)
             }
+        }
+        .sheet(isPresented: $showingRestTimer) {
+            TimerOverlayView(
+                timer: restTimer,
+                mode: .restCountdown
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
         .alert(
             "Rename Session",
@@ -137,6 +153,37 @@ struct WorkoutDetailView: View {
         } header: {
             exerciseHeader(for: workoutExercise)
         }
+    }
+
+    // MARK: - Rest Timer
+
+    private var restTimerButton: some View {
+        Button {
+            showingRestTimer = true
+            restTimer.startRestCountdown()
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "timer")
+                Text(restTimer.isRunning ? formattedRestTime : "Rest")
+            }
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.primary)
+            .frame(height: 42)
+            .padding(.horizontal, 18)
+            .background(Capsule().fill(Color(.secondarySystemBackground)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            restTimer.isRunning
+            ? "Rest timer, \(formattedRestTime) remaining"
+            : "Start rest timer"
+        )
+    }
+    
+    private var formattedRestTime: String {
+        let minutes = restTimer.remainingSeconds / 60
+        let seconds = restTimer.remainingSeconds % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 
     // MARK: - Exercise Header

@@ -17,6 +17,9 @@ enum SetField: Hashable {
     case distance(PersistentIdentifier)
 }
 
+
+// MARK: - Set Row
+
 struct SetRowView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var unitSettings: UnitSettings
@@ -29,6 +32,27 @@ struct SetRowView: View {
 
     @State private var pendingSave: DispatchWorkItem?
     @State private var hasAppeared = false
+    @State private var showFocusMode = false
+    @State private var timer: Timer
+    
+    init(
+        set: ExerciseSet,
+        loggingType: ExerciseLoggingType,
+        focusedField: FocusState<SetField?>.Binding,
+        previousSet: ExerciseSet? = nil
+    ) {
+        self.set = set
+        self.loggingType = loggingType
+        self.focusedField = focusedField
+        self.previousSet = previousSet
+
+        // Target defaults to what was done last time for this exercise —
+        // still fully adjustable via the +/- controls afterward.
+        self.timer = Timer(
+            initialSeconds: set.durationSeconds,
+            targetSeconds: previousSet?.durationSeconds ?? 0
+        )
+    }
 
     // MARK: - Saving
 
@@ -118,6 +142,7 @@ struct SetRowView: View {
             set: { newValue in
                 let seconds = set.durationSeconds % 60
                 set.durationSeconds = max(0, newValue) * 60 + seconds
+                timer.syncElapsed(to: set.durationSeconds)
                 scheduleSave()
             }
         )
@@ -131,6 +156,7 @@ struct SetRowView: View {
             set: { newValue in
                 let minutes = set.durationSeconds / 60
                 set.durationSeconds = minutes * 60 + max(0, newValue)
+                timer.syncElapsed(to: set.durationSeconds)
                 scheduleSave()
             }
         )
@@ -218,6 +244,15 @@ struct SetRowView: View {
         )
     }
 
+    private var isDurationBasedType: Bool {
+        switch loggingType {
+        case .time, .timeWeight, .distanceTime:
+            return true
+        case .weightReps, .bodyweightReps, .repsOnly:
+            return false
+        }
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -229,9 +264,20 @@ struct SetRowView: View {
                 failureButton
             }
 
-            if let previousHint {
-                previousSetButton(hint: previousHint)
+            // Both moved off .padding(.leading, 36) on themselves and onto
+            // this shared HStack — previously each carried its own 36pt
+            // leading padding, so together they doubled up instead of
+            // sharing one aligned offset.
+            HStack(spacing: 4) {
+                if let previousHint {
+                    previousSetButton(hint: previousHint)
+                }
+
+                if isDurationBasedType {
+                    targetAdjuster
+                }
             }
+            .padding(.leading, 36)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
@@ -250,6 +296,7 @@ struct SetRowView: View {
         )
         .onDisappear {
             saveNow()
+            timer.suspend()
         }
         .onAppear {
             let delay =
@@ -264,6 +311,17 @@ struct SetRowView: View {
             ) {
                 hasAppeared = true
             }
+
+            timer.onChange = { seconds in
+                set.durationSeconds = seconds
+                scheduleSave()
+            }
+        }
+        .fullScreenCover(isPresented: $showFocusMode) {
+            TimerOverlayView(
+                timer: timer,
+                mode: .setFocusStopwatch
+            )
         }
     }
 
@@ -380,13 +438,55 @@ struct SetRowView: View {
             )
         }
         .buttonStyle(.plain)
-        .padding(.leading, 36)
         .accessibilityLabel(
             "Copy last set: \(hint)"
         )
         .accessibilityHint(
             "Fills this set with the previous set's values"
         )
+    }
+
+    // MARK: - Target Adjuster
+
+    private var targetAdjuster: some View {
+        HStack(spacing: 8) {
+            Button {
+                timer.adjustTarget(by: -5)
+            } label: {
+                Image(systemName: "minus")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                    .background(
+                        Circle().fill(Color(.secondarySystemBackground))
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(timer.targetSeconds == 0)
+
+            Text(
+                timer.targetSeconds > 0
+                    ? "Target \(formattedDuration(timer.targetSeconds))"
+                    : "No target"
+            )
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .frame(minWidth: 78, alignment: .leading)
+
+            Button {
+                timer.adjustTarget(by: 5)
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                    .background(
+                        Circle().fill(Color(.secondarySystemBackground))
+                    )
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     // MARK: - Copy Previous
@@ -439,6 +539,15 @@ struct SetRowView: View {
                 set.reps =
                     previousSet.reps
             }
+        }
+
+        // Copying a duration-based type bypasses the duration fields'
+        // own bindings, so the stopwatch engine needs the same sync
+        // those bindings do — otherwise starting the timer afterward
+        // would silently discard the copied value (see durationMinutes
+        // / durationSecondsOnly above).
+        if isDurationBasedType {
+            timer.syncElapsed(to: set.durationSeconds)
         }
 
         saveNow()
@@ -519,6 +628,7 @@ struct SetRowView: View {
                     set.persistentModelID
                 )
             )
+            .disabled(timer.isRunning)
 
             Text(":")
                 .font(
@@ -537,6 +647,70 @@ struct SetRowView: View {
                     set.persistentModelID
                 )
             )
+            .disabled(timer.isRunning)
+        }
+    }
+
+    // MARK: - Timer Controls
+
+    private var timerControls: some View {
+        HStack(spacing: 6) {
+            Button {
+                timer.isRunning ? timer.pause() : timer.start()
+            } label: {
+                Image(
+                    systemName: timer.isRunning
+                        ? "pause.fill"
+                        : "play.fill"
+                )
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(
+                    Circle()
+                        .fill(
+                            timer.isRunning
+                                ? Color.orange
+                                : Color(Theme.accent)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                timer.isRunning ? "Pause timer" : "Start timer"
+            )
+
+            Button {
+                timer.reset()
+            } label: {
+                // arrow.counterclockwise instead of a stop square — the
+                // action clears the field back to 0, so the icon should
+                // read as "reset," not "stop and keep this value."
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        Circle().fill(Color(.secondarySystemBackground))
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(!timer.isRunning && set.durationSeconds == 0)
+            .accessibilityLabel("Reset timer")
+
+            Button {
+                showFocusMode = true
+            } label: {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        Circle().fill(Color(.secondarySystemBackground))
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open full-screen timer")
         }
     }
 
@@ -602,11 +776,15 @@ struct SetRowView: View {
             }
 
         case .time:
-            durationFields()
+            HStack(spacing: 6) {
+                durationFields()
+                timerControls
+            }
 
         case .timeWeight:
             HStack(spacing: 5) {
                 durationFields()
+                timerControls
 
                 doubleField(
                     "Weight",
@@ -642,6 +820,7 @@ struct SetRowView: View {
                     .foregroundStyle(.secondary)
 
                 durationFields()
+                timerControls
             }
 
         case .repsOnly:
