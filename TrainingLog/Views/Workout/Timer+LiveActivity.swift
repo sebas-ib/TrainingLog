@@ -80,9 +80,18 @@ extension Timer {
         // actually counting — and visible — at a time.
         WorkoutTimerActivityManager.shared.takeOver(self)
 
-        // Unlike rest, crossing target doesn't pause or complete() —
-        // a set just keeps counting past it, so the default
-        // onTargetCrossed (haptic + sound only) is left as-is.
+        // Unlike rest, crossing target doesn't pause anything — a set
+        // just keeps counting past it. But the Live Activity still needs
+        // an explicit nudge right here: nothing else reliably prompts
+        // the widget to re-render and notice it should turn green —
+        // that's what actually makes rest's "Done" state show up
+        // promptly too, not the wall-clock fallback by itself.
+        onTargetCrossed = {
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            AudioServicesPlaySystemSound(1057)
+            WorkoutTimerActivityManager.shared.refresh()
+        }
+
         start()
         WorkoutTimerActivityManager.shared.startStopwatch(
             elapsedSeconds: elapsedSeconds,

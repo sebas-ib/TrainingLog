@@ -24,6 +24,7 @@ struct TrainingLogWidgetLiveActivity: Widget {
 
             let isSetTimer = context.attributes.kind == .setTimer
             let isDone = Self.isDone(context)
+            let isHighlighted = Self.isHighlighted(context)
 
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -31,17 +32,21 @@ struct TrainingLogWidgetLiveActivity: Widget {
                     // system Stopwatch's Dynamic Island, the elapsed/
                     // remaining number is the one thing that should read
                     // as "the point" here, not a competing headline.
-                    VStack(alignment: .leading, spacing: 3) {
-                        Image(systemName: Self.leadingIcon(context))
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(isDone ? .green : Theme.accent)
+                    TimelineView(.periodic(from: context.attributes.startedAt, by: Self.crossCheckInterval)) { timeline in
+                        let highlighted = Self.isHighlighted(context, at: timeline.date)
 
-                        Text(Self.title(context))
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(isDone ? .green : .secondary)
-                            .lineLimit(1)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Image(systemName: Self.leadingIcon(context))
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(highlighted ? .green : Theme.accent)
+
+                            Text(Self.title(context))
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(isDone ? .green : .secondary)
+                                .lineLimit(1)
+                        }
+                        .padding(.leading, 4)
                     }
-                    .padding(.leading, 4)
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
@@ -60,14 +65,16 @@ struct TrainingLogWidgetLiveActivity: Widget {
                         // The hero element — big, bold, tabular digits
                         // dominating the expanded island the way the
                         // system Stopwatch/Timer activities do.
-                        Text(timerInterval: Self.textInterval(context), countsDown: !isSetTimer)
-                            .font(.system(size: 40))
-                            .monospacedDigit()
-                            .foregroundStyle(Theme.accent)
-                            .contentTransition(.numericText())
-                            .minimumScaleFactor(0.6)
-                            .lineLimit(1)
-                            .padding(.trailing, 4)
+                        TimelineView(.periodic(from: context.attributes.startedAt, by: Self.crossCheckInterval)) { timeline in
+                            Text(timerInterval: Self.textInterval(context), countsDown: !isSetTimer)
+                                .font(.system(size: 40))
+                                .monospacedDigit()
+                                .foregroundStyle(Self.hasCrossedTarget(context, at: timeline.date) ? .green : Theme.accent)
+                                .contentTransition(.numericText())
+                                .minimumScaleFactor(0.6)
+                                .lineLimit(1)
+                                .padding(.trailing, 4)
+                        }
                     }
                 }
 
@@ -91,9 +98,11 @@ struct TrainingLogWidgetLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: Self.leadingIcon(context))
-                    .font(.system(size: 20))
-                    .foregroundStyle(isDone ? .green : Theme.accent)
+                TimelineView(.periodic(from: context.attributes.startedAt, by: Self.crossCheckInterval)) { timeline in
+                    Image(systemName: Self.leadingIcon(context))
+                        .font(.system(size: 20))
+                        .foregroundStyle(Self.isHighlighted(context, at: timeline.date) ? .green : Theme.accent)
+                }
             } compactTrailing: {
                 if isDone {
                     Image(systemName: "checkmark")
@@ -109,36 +118,58 @@ struct TrainingLogWidgetLiveActivity: Widget {
                     // `.overlay`, ITS size is what gets reported to the
                     // Island, while the real ticking digits render on
                     // top through the native, OS-driven
-                    // `Text(timerInterval:)` — so it still updates every
-                    // second with zero extra work from the widget
-                    // extension, unlike a manually re-rendering
-                    // `TimelineView` would need.
-                    Text(Self.formattedTimer(context))
-                        .font(.system(size: 15))
-                        .monospacedDigit()
-                        .hidden()
-                        .overlay(
-                            Text(
-                                timerInterval: Self.textInterval(context),
-                                countsDown: !isSetTimer
-                            )
+                    // `Text(timerInterval:)` — so the digits themselves
+                    // still update every second for free. The
+                    // `TimelineView` wrapping it isn't for that — it's
+                    // only there so the *color* rechecks whether target's
+                    // been crossed periodically, instead of only once.
+                    TimelineView(.periodic(from: context.attributes.startedAt, by: Self.crossCheckInterval)) { timeline in
+                        Text(Self.formattedTimer(context))
                             .font(.system(size: 15))
                             .monospacedDigit()
-                            .foregroundStyle(Theme.accent)
-                            .contentTransition(.numericText())
-                        )
-                        .lineLimit(1)
+                            .hidden()
+                            .overlay(
+                                Text(
+                                    timerInterval: Self.textInterval(context),
+                                    countsDown: !isSetTimer
+                                )
+                                .font(.system(size: 15))
+                                .monospacedDigit()
+                                .foregroundStyle(Self.hasCrossedTarget(context, at: timeline.date) ? .green : Theme.accent)
+                                .contentTransition(.numericText())
+                            )
+                            .lineLimit(1)
+                    }
                 }
             } minimal: {
-                Image(systemName: Self.leadingIcon(context))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(isDone ? .green : Theme.accent)
+                // The minimal presentation has just the one glyph, no
+                // separate leading/trailing pair to split the "done"
+                // signal across — so unlike `leadingIcon`, this keeps
+                // the checkmark here for a finished rest.
+                TimelineView(.periodic(from: context.attributes.startedAt, by: Self.crossCheckInterval)) { timeline in
+                    Image(systemName: isDone ? "checkmark.circle.fill" : Self.leadingIcon(context))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Self.isHighlighted(context, at: timeline.date) ? .green : Theme.accent)
+                }
             }
-            .keylineTint(isDone ? .green : Theme.accent)
+            // Not wrapped in a TimelineView like the regions above —
+            // `keylineTint` takes a plain Color, not a view builder, so
+            // there's no slot here to put one in. It'll pick up
+            // "past target" green whenever the system re-renders this
+            // closure for some other reason, same imprecision the old
+            // rest-only isDone check used to have everywhere.
+            .keylineTint(isHighlighted ? .green : Theme.accent)
         }
     }
 
     // MARK: - Shared Helpers
+
+    /// How often the `TimelineView`s scattered through the Dynamic
+    /// Island recheck whether a set's target has been crossed. Only
+    /// needs to be frequent enough that the color change feels prompt —
+    /// once it's true it stays true, so there's nothing to gain from
+    /// checking faster than this.
+    static let crossCheckInterval: TimeInterval = 5
 
     /// Whether the activity should be presented as finished. Only a rest
     /// countdown ever reaches "done" — a set stopwatch has no finish
@@ -164,9 +195,56 @@ struct TrainingLogWidgetLiveActivity: Widget {
         return context.state.isCompleted || context.isStale || context.state.endDate <= Date()
     }
 
+    /// For a set stopwatch only — true once elapsed time has passed its
+    /// target. Unlike a rest countdown reaching zero, this doesn't stop
+    /// or end anything; it's purely a "past target" color cue, derived
+    /// the same wall-clock way `ringInterval`'s cross date is.
+    /// `at` defaults to `Date()` for call sites that only need a one-off
+    /// read, but every Dynamic Island call site below passes a
+    /// `TimelineView`'s tick date explicitly instead: `Text(timerInterval:)`
+    /// ticks its own digits without ever re-running the surrounding
+    /// SwiftUI body, and a set stopwatch's `staleDate` (unlike rest's)
+    /// isn't tied to anything the system's own render pipeline is
+    /// already tracking, so relying on some future system-triggered
+    /// refresh to notice `Date() >= crossDate` turned out to not
+    /// reliably happen at all — the color would just never update. A
+    /// periodic `TimelineView` forces that recheck itself instead of
+    /// waiting on one.
+    static func hasCrossedTarget(_ context: ActivityViewContext<WorkoutTimerAttributes>, at date: Date = Date()) -> Bool {
+        guard context.attributes.kind == .setTimer, context.attributes.targetSeconds > 0 else {
+            return false
+        }
+
+        let crossDate = context.attributes.startedAt.addingTimeInterval(
+            TimeInterval(context.attributes.targetSeconds)
+        )
+
+        return date >= crossDate
+    }
+
+    /// Whether this activity should render in its "green" state —
+    /// either a rest that's finished, or a set that's run past target.
+    static func isHighlighted(_ context: ActivityViewContext<WorkoutTimerAttributes>, at date: Date = Date()) -> Bool {
+        isDone(context) || hasCrossedTarget(context, at: date)
+    }
+
+    /// The leading icon — distinct per kind so a glance tells rest and
+    /// set timing apart, not just the color does. A finished rest hands
+    /// back to the workout with a weightlifting icon here; the checkmark
+    /// that used to live here instead lives in the trailing slot (see
+    /// `compactTrailing`), so the two don't say the same thing twice. A
+    /// set stopwatch keeps its timer icon even past target — only the
+    /// color changes there, via `isHighlighted`.
     static func leadingIcon(_ context: ActivityViewContext<WorkoutTimerAttributes>) -> String {
-        if isDone(context) { return "checkmark.circle.fill" }
-        return context.attributes.kind == .setTimer ? "stopwatch" : "timer"
+        if isDone(context) {
+            return "figure.strengthtraining.traditional"
+        }
+        switch context.attributes.kind {
+        case .restCountdown:
+            return "figure.cooldown"
+        case .setTimer:
+            return "timer"
+        }
     }
 
     static func title(_ context: ActivityViewContext<WorkoutTimerAttributes>) -> String {
@@ -267,73 +345,84 @@ private struct LockScreenTimerView: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(isDone ? Color.green.opacity(0.15) : Theme.accent.opacity(0.15))
-                    .frame(width: 44, height: 44)
+        // Wrapped so `hasCrossedTarget`/`isHighlighted` — both plain
+        // wall-clock comparisons — actually get rechecked periodically,
+        // instead of only once whenever the system happens to re-render
+        // this view for some unrelated reason. See the long comment on
+        // `hasCrossedTarget` in the main widget type for why that's
+        // necessary here specifically.
+        TimelineView(.periodic(from: context.attributes.startedAt, by: TrainingLogWidgetLiveActivity.crossCheckInterval)) { timeline in
+            let hasCrossedTarget = TrainingLogWidgetLiveActivity.hasCrossedTarget(context, at: timeline.date)
+            let isHighlighted = TrainingLogWidgetLiveActivity.isHighlighted(context, at: timeline.date)
 
-                Image(systemName: TrainingLogWidgetLiveActivity.leadingIcon(context))
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(isDone ? .green : Theme.accent)
-            }
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(isHighlighted ? Color.green.opacity(0.15) : Theme.accent.opacity(0.15))
+                        .frame(width: 44, height: 44)
 
-            if isDone {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Rest complete")
-                        .font(.system(size: 16, weight: .semibold))
-
-                    Text("Tap to return to your workout")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                    Image(systemName: TrainingLogWidgetLiveActivity.leadingIcon(context))
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(isHighlighted ? .green : Theme.accent)
                 }
 
-                Spacer()
+                if isDone {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Rest complete")
+                            .font(.system(size: 16, weight: .semibold))
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(subtitle)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    Text(
-                        timerInterval: TrainingLogWidgetLiveActivity.textInterval(context),
-                        countsDown: !isSetTimer
-                    )
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.primary)
-                    .contentTransition(.numericText())
-
-                    if isSetTimer, let targetLabel {
-                        Text(targetLabel)
-                            .font(.system(size: 11, weight: .medium))
+                        Text("Tap to return to your workout")
+                            .font(.system(size: 13))
                             .foregroundStyle(.secondary)
                     }
-                }
 
-                Spacer()
+                    Spacer()
 
-                if let ringInterval = TrainingLogWidgetLiveActivity.ringInterval(context) {
-                    ProgressView(timerInterval: ringInterval, countsDown: false)
-                        .progressViewStyle(.circular)
-                        .tint(Theme.accent)
-                        .frame(width: 34, height: 34)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(subtitle)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+
+                        Text(
+                            timerInterval: TrainingLogWidgetLiveActivity.textInterval(context),
+                            countsDown: !isSetTimer
+                        )
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(hasCrossedTarget ? .green : .primary)
+                        .contentTransition(.numericText())
+
+                        if isSetTimer, let targetLabel {
+                            Text(targetLabel)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    if let ringInterval = TrainingLogWidgetLiveActivity.ringInterval(context) {
+                        ProgressView(timerInterval: ringInterval, countsDown: false)
+                            .progressViewStyle(.circular)
+                            .tint(Theme.accent)
+                            .frame(width: 34, height: 34)
+                    }
                 }
             }
+            .padding(16)
+            .activityBackgroundTint(Color(.systemBackground))
+            .activitySystemActionForegroundColor(Theme.accent)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                isDone
+                    ? "Rest complete. Tap to return to your workout."
+                    : (isSetTimer ? "\(subtitle) timer running" : "Resting, \(subtitle.lowercased())")
+            )
         }
-        .padding(16)
-        .activityBackgroundTint(Color(.systemBackground))
-        .activitySystemActionForegroundColor(Theme.accent)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            isDone
-                ? "Rest complete. Tap to return to your workout."
-                : (isSetTimer ? "\(subtitle) timer running" : "Resting, \(subtitle.lowercased())")
-        )
     }
 }

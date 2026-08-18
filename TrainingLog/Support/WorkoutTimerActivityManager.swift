@@ -89,7 +89,12 @@ final class WorkoutTimerActivityManager {
             startedAt: startedAt,
             endDate: startedAt.addingTimeInterval(TimeInterval(duration)),
             targetSeconds: duration,
-            label: nil
+            label: nil,
+            // Prompts the system to refresh the widget's view around
+            // the real completion moment — see the long staleDate note
+            // below for why this matters even for a wall-clock-derived
+            // "done" check.
+            staleDate: startedAt.addingTimeInterval(TimeInterval(duration))
         )
     }
 
@@ -101,12 +106,21 @@ final class WorkoutTimerActivityManager {
     func startStopwatch(elapsedSeconds: Int, targetSeconds: Int, label: String) {
         let startedAt = Date().addingTimeInterval(-TimeInterval(elapsedSeconds))
 
+        // Unlike the stopwatch's arbitrary 6-hour endDate ceiling, this
+        // is a real, meaningful moment — the instant the widget's
+        // "past target, turn green" check should start being true — so
+        // it's what staleDate points at, not the ceiling.
+        let crossDate = targetSeconds > 0
+            ? startedAt.addingTimeInterval(TimeInterval(targetSeconds))
+            : nil
+
         start(
             kind: .setTimer,
             startedAt: startedAt,
             endDate: startedAt.addingTimeInterval(Self.stopwatchCeiling),
             targetSeconds: targetSeconds,
-            label: label
+            label: label,
+            staleDate: crossDate
         )
     }
 
@@ -115,7 +129,8 @@ final class WorkoutTimerActivityManager {
         startedAt: Date,
         endDate: Date,
         targetSeconds: Int,
-        label: String?
+        label: String?,
+        staleDate: Date?
     ) {
         guard ActivityAuthorizationInfo()
             .areActivitiesEnabled else {
@@ -139,11 +154,18 @@ final class WorkoutTimerActivityManager {
                 endDate: endDate
             )
 
+        // `Text(timerInterval:)` ticks its own displayed digits natively
+        // without re-running the widget's view code, so anything that
+        // only reads true wall-clock time (isDone, hasCrossedTarget) —
+        // as opposed to what's baked into the pushed ContentState —
+        // won't actually update on screen until *something* re-renders
+        // the view. `staleDate` is what prompts the system to do that
+        // around a meaningful moment (rest's real end / a set's target
+        // crossing) even while the app is backgrounded and can't push
+        // an update itself.
         let content = ActivityContent(
             state: state,
-            // A stopwatch's endDate is an arbitrary ceiling, not a real
-            // deadline, so there's nothing meaningful to go stale at.
-            staleDate: kind == .restCountdown ? endDate : nil
+            staleDate: staleDate
         )
 
         // Hand off whatever activity we're currently tracking — running,
@@ -187,6 +209,27 @@ final class WorkoutTimerActivityManager {
                     "Failed to start Live Activity: \(error)"
                 )
             }
+        }
+    }
+
+    // MARK: - Refresh
+
+    /// Nudges the running activity with its own unchanged content —
+    /// purely to force the widget to re-render and recheck anything
+    /// derived from wall-clock time, like a set stopwatch just crossing
+    /// its target. `staleDate` and a `TimelineView` in the widget are
+    /// both best-effort at prompting that on their own; an explicit
+    /// `update()` is the one thing ActivityKit actually guarantees
+    /// triggers a redraw — it's the same reason `complete()` reliably
+    /// flips a finished rest over to "Done" rather than the wall-clock
+    /// fallback quietly doing that work on its own.
+    func refresh() {
+        guard let activity else {
+            return
+        }
+
+        Task {
+            await activity.update(activity.content)
         }
     }
 
