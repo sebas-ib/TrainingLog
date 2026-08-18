@@ -28,6 +28,13 @@ final class WorkoutTimerActivityManager {
     /// bookkeeping shouldn't be what keeps it alive.
     private weak var activeTimer: Timer?
 
+    /// Whether the tracked activity is sitting in `complete()`'s "Done"
+    /// state, waiting to be cleared. Tracked separately from `activity`
+    /// itself (which stays non-nil the whole time it's lingering) so
+    /// `dismissIfCompleted()` can tell a finished-and-lingering activity
+    /// apart from one that's still actively counting.
+    private var isCompleted = false
+
     /// How far out `endDate` is set for a stopwatch, which has no real
     /// deadline — just needs a bound far enough that no realistic single
     /// set runs into it while still satisfying `Text(timerInterval:)`'s
@@ -115,6 +122,10 @@ final class WorkoutTimerActivityManager {
             print("Live Activities are disabled.")
             return
         }
+
+        // A fresh timer is, by definition, not sitting in a finished
+        // "Done" state waiting to be dismissed.
+        isCompleted = false
 
         let attributes = WorkoutTimerAttributes(
             kind: kind,
@@ -207,22 +218,26 @@ final class WorkoutTimerActivityManager {
     // MARK: - Complete
 
     /// Marks the activity as finished — the widget switches to a "Done"
-    /// state the user can tap back into the app from — then lets it
-    /// linger on the Lock Screen/Dynamic Island for a grace period before
-    /// auto-dismissing, rather than vanishing instantly like end().
+    /// state the user can tap back into the app from.
+    ///
+    /// Deliberately calls `update(_:)`, not `end(_:dismissalPolicy:)`:
+    /// ending the activity — even with `.default`, even with a long
+    /// custom `.after(...)` date — starts the system's own removal
+    /// clock for it, and in practice that made the Dynamic Island
+    /// presence disappear right at the 0:00 mark instead of lingering.
+    /// Pushing the finished state through an *update* keeps the activity
+    /// genuinely running (never ended), which is the only way to
+    /// guarantee nothing auto-removes it — it stays showing "Done" until
+    /// something in this app explicitly ends it: `dismissIfCompleted()`
+    /// once the user comes back, or a new timer's hand-off in `start()`.
     /// Only meaningful for a rest countdown — a set stopwatch has no
     /// finish line, it just keeps counting until paused/reset.
-    ///
-    /// Deliberately does *not* clear `activity` afterward: the Live
-    /// Activity is still alive at the OS level for the whole linger
-    /// window, and start() needs the reference to dismiss it immediately
-    /// if a new timer begins before that window elapses. Clearing it
-    /// here would let a same-window restart race the still-lingering
-    /// activity into ActivityKit's concurrent-activity limit.
-    func complete(lingerFor seconds: TimeInterval = 60) {
+    func complete() {
         guard let activity else {
             return
         }
+
+        isCompleted = true
 
         let state =
             WorkoutTimerAttributes.ContentState(
@@ -236,13 +251,24 @@ final class WorkoutTimerActivityManager {
         )
 
         Task {
-            await activity.end(
-                content,
-                dismissalPolicy: .after(Date().addingTimeInterval(seconds))
-            )
+            await activity.update(content)
         }
 
         print("Live Activity completed.")
+    }
+
+    /// Clears a lingering "Done" activity now that the user has actually
+    /// come back to the app and seen it — called when the app returns to
+    /// the foreground. No-ops if the tracked activity is still actively
+    /// counting rather than sitting in the completed state, so this
+    /// can't cut off a rest/set timer just because the app was
+    /// backgrounded and reopened mid-run.
+    func dismissIfCompleted() {
+        guard isCompleted else {
+            return
+        }
+
+        end()
     }
 
     // MARK: - End
@@ -270,6 +296,7 @@ final class WorkoutTimerActivityManager {
         }
 
         self.activity = nil
+        isCompleted = false
 
         print("Live Activity ended.")
     }

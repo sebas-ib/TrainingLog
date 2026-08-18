@@ -27,71 +27,111 @@ struct TrainingLogWidgetLiveActivity: Widget {
 
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 8) {
+                    // Kept small and secondary on purpose — like the
+                    // system Stopwatch's Dynamic Island, the elapsed/
+                    // remaining number is the one thing that should read
+                    // as "the point" here, not a competing headline.
+                    VStack(alignment: .leading, spacing: 3) {
                         Image(systemName: Self.leadingIcon(context))
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(isDone ? .green : Theme.accent)
 
                         Text(Self.title(context))
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(isDone ? .green : .primary)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(isDone ? .green : .secondary)
                             .lineLimit(1)
                     }
+                    .padding(.leading, 4)
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
                     if isDone {
-                        HStack(spacing: 4) {
+                        VStack(alignment: .trailing, spacing: 4) {
                             Text("Tap to return")
-                                .font(.system(size: 13))
+                                .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(.secondary)
 
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(.tertiary)
                         }
+                        .padding(.trailing, 4)
                     } else {
+                        // The hero element — big, bold, tabular digits
+                        // dominating the expanded island the way the
+                        // system Stopwatch/Timer activities do.
                         Text(timerInterval: Self.textInterval(context), countsDown: !isSetTimer)
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .font(.system(size: 40))
                             .monospacedDigit()
                             .foregroundStyle(Theme.accent)
+                            .contentTransition(.numericText())
+                            .minimumScaleFactor(0.6)
+                            .lineLimit(1)
+                            .padding(.trailing, 4)
                     }
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
                     if !isDone, let ringInterval = Self.ringInterval(context) {
-                        VStack(spacing: 5) {
+                        HStack(spacing: 8) {
                             ProgressView(
                                 timerInterval: ringInterval,
                                 countsDown: false
                             )
                             .tint(Theme.accent)
+                            .frame(maxWidth: 120)
 
                             Text("Target \(Self.formatted(context.attributes.targetSeconds))")
-                                .font(.system(size: 11))
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
-                        .padding(.top, 2)
+                        .padding(.horizontal, 4)
+                        .padding(.top, 4)
                     }
                 }
             } compactLeading: {
                 Image(systemName: Self.leadingIcon(context))
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 20))
                     .foregroundStyle(isDone ? .green : Theme.accent)
             } compactTrailing: {
                 if isDone {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 13))
                         .foregroundStyle(.green)
                 } else {
-                    Text(timerInterval: Self.textInterval(context), countsDown: !isSetTimer)
-                        .font(.system(size: 14, weight: .semibold))
+                    // `Text(timerInterval:)` alone reports an oversized,
+                    // unstable intrinsic width in this specific compact-
+                    // pill slot — enough in practice to stretch the pill
+                    // across the whole island. An identically-styled
+                    // plain `Text(String)` sizes correctly, so it's used
+                    // here purely as an invisible sizing reference: via
+                    // `.overlay`, ITS size is what gets reported to the
+                    // Island, while the real ticking digits render on
+                    // top through the native, OS-driven
+                    // `Text(timerInterval:)` — so it still updates every
+                    // second with zero extra work from the widget
+                    // extension, unlike a manually re-rendering
+                    // `TimelineView` would need.
+                    Text(Self.formattedTimer(context))
+                        .font(.system(size: 15))
                         .monospacedDigit()
-                        .foregroundStyle(Theme.accent)
-                        .frame(width: 44, alignment: .trailing)
+                        .hidden()
+                        .overlay(
+                            Text(
+                                timerInterval: Self.textInterval(context),
+                                countsDown: !isSetTimer
+                            )
+                            .font(.system(size: 15))
+                            .monospacedDigit()
+                            .foregroundStyle(Theme.accent)
+                            .contentTransition(.numericText())
+                        )
+                        .lineLimit(1)
                 }
             } minimal: {
                 Image(systemName: Self.leadingIcon(context))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(isDone ? .green : Theme.accent)
             }
             .keylineTint(isDone ? .green : Theme.accent)
@@ -166,10 +206,38 @@ struct TrainingLogWidgetLiveActivity: Widget {
         }
     }
 
+    /// Matches `Text(timerInterval:)`'s own formatting switch — "M:SS"
+    /// under an hour, "H:MM:SS" at or past it — so the sizing reference
+    /// in `compactTrailing` widens at exactly the same threshold the
+    /// real ticking text does, instead of clipping it once an hour of
+    /// stopwatch time has passed.
     static func formatted(_ totalSeconds: Int) -> String {
-        let minutes = totalSeconds / 60
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
         let seconds = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
         return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    /// A one-off snapshot of the current remaining/elapsed time, as a
+    /// plain string — used only as an invisible sizing reference (see
+    /// `compactTrailing` above), never as the actual displayed digits.
+    /// It doesn't need to re-run every second itself: it only has to be
+    /// roughly right *when the widget happens to re-render*, so the
+    /// reference stays close to the real digit count (e.g. widening once
+    /// the display crosses from "9:59" into "10:00").
+    static func formattedTimer(_ context: ActivityViewContext<WorkoutTimerAttributes>) -> String {
+        let seconds: Int
+        switch context.attributes.kind {
+        case .restCountdown:
+            seconds = max(0, Int(context.state.endDate.timeIntervalSinceNow.rounded(.up)))
+        case .setTimer:
+            seconds = max(0, Int(Date().timeIntervalSince(context.attributes.startedAt)))
+        }
+        return formatted(seconds)
     }
 }
 

@@ -118,7 +118,7 @@ struct WorkoutDetailView: View {
                 timer: restTimer,
                 mode: .restCountdown
             )
-            .presentationDetents([.medium])
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
         .alert(

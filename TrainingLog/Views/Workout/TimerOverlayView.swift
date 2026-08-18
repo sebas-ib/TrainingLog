@@ -79,24 +79,32 @@ struct TimerOverlayView: View {
 
     // MARK: - Close
 
+    /// Only the set-focus stopwatch gets an explicit close button — it's
+    /// a full-screen cover, which has no swipe-to-dismiss of its own.
+    /// The rest timer is a sheet with a visible drag indicator, so swipe-
+    /// down is already the dismiss gesture and a redundant button would
+    /// just add clutter.
+    @ViewBuilder
     private var closeButton: some View {
-        HStack {
-            Spacer()
+        if mode == .setFocusStopwatch {
+            HStack {
+                Spacer()
 
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(Color(.secondarySystemBackground)))
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(Color(.secondarySystemBackground)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close \(mode.accessibilityContext)")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close \(mode.accessibilityContext)")
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
     }
 
     // MARK: - Dial
