@@ -108,13 +108,24 @@ struct WorkoutDetailView: View {
                 .sharedBackgroundVisibility(.hidden)
             }
 
-            // Floats above the List, outside its layout system,
-            // so keyboard avoidance can't push it around.
-            VStack(spacing: 8) {
-                restTimerButton
-                addExerciseButton
-            }        }
-        .ignoresSafeArea(.keyboard, edges: .bottom)
+            // Floats above the List, outside its layout system, and
+            // ignores the keyboard safe area itself so it stays pinned
+            // to the bottom of the screen. The List is deliberately left
+            // out of that — keeping its default keyboard avoidance is
+            // what lets it auto-scroll the focused set above the numpad
+            // instead of leaving it hidden underneath. Hidden entirely
+            // while a field is focused, rather than left sitting on top
+            // of the keyboard.
+            if focusedField == nil {
+                VStack(spacing: 8) {
+                    restTimerButton
+                    addExerciseButton
+                }
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: focusedField == nil)
         .sheet(isPresented: $showingExercisePicker) {
             ExercisePickerView { selectedExercise in
                 addExercise(selectedExercise)
