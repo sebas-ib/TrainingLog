@@ -32,10 +32,39 @@ enum MuscleTarget: String, CaseIterable, Identifiable, Codable {
     case obliques = "Obliques"
     case quads = "Quads"
     case hamstrings = "Hamstrings"
+    case abductors = "Abductors"
+    case adductors = "Adductors"
     case glutes = "Glutes"
     case calves = "Calves"
 
     var id: String { rawValue }
+
+    /// The label actually shown in the UI. For most cases this is just
+    /// `rawValue` — but the arm sub-heads carry a "Biceps –"/"Triceps –"
+    /// prefix in their raw value purely to keep it unique from its
+    /// counterpart in the sibling group (both Biceps and Triceps have a
+    /// "Long Head"); showing that prefix is redundant everywhere it's
+    /// actually displayed, since Biceps, Triceps, and Forearms are each
+    /// their own `MuscleGroup`, so every list of these is already
+    /// grouped or titled by which one you're looking at.
+    var displayName: String {
+        switch self {
+        case .bicepsLongHead, .tricepsLongHead:
+            return "Long Head"
+        case .bicepsShortHead:
+            return "Short Head"
+        case .tricepsLateralHead:
+            return "Lateral Head"
+        case .tricepsMedialHead:
+            return "Medial Head"
+        case .forearmFlexors:
+            return "Flexors"
+        case .forearmExtensors:
+            return "Extensors"
+        default:
+            return rawValue
+        }
+    }
 
     /// The broad category this specific muscle rolls up into — what
     /// drives `Exercise.muscleGroup` (and everything downstream of it:
@@ -58,7 +87,7 @@ enum MuscleTarget: String, CaseIterable, Identifiable, Codable {
             return .forearms
         case .abs, .obliques:
             return .core
-        case .quads, .hamstrings, .glutes, .calves:
+        case .quads, .hamstrings, .abductors, .adductors, .glutes, .calves:
             return .legs
         }
     }

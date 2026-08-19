@@ -36,7 +36,7 @@ struct MuscleTargetPickerView: View {
                                 toggle(target)
                             } label: {
                                 HStack {
-                                    Text(target.rawValue)
+                                    Text(target.displayName)
                                         .foregroundStyle(.primary)
 
                                     Spacer()

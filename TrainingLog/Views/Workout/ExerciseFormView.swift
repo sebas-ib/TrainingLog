@@ -125,7 +125,7 @@ struct ExerciseFormView: View {
 
     private func summary(for targets: Set<MuscleTarget>) -> String {
         guard !targets.isEmpty else { return "None" }
-        return targets.map(\.rawValue).sorted().joined(separator: ", ")
+        return targets.map(\.displayName).sorted().joined(separator: ", ")
     }
 
     private func save() {

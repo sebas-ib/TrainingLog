@@ -18,9 +18,9 @@ struct ExerciseProgressView: View {
 
     private var muscleTargetsSummary: String? {
         guard !exercise.primaryMuscleTargets.isEmpty else { return nil }
-        var text = exercise.primaryMuscleTargets.map(\.rawValue).joined(separator: ", ")
+        var text = exercise.primaryMuscleTargets.map(\.displayName).joined(separator: ", ")
         if !exercise.secondaryMuscleTargets.isEmpty {
-            text += " · also " + exercise.secondaryMuscleTargets.map(\.rawValue).joined(separator: ", ")
+            text += " · also " + exercise.secondaryMuscleTargets.map(\.displayName).joined(separator: ", ")
         }
         return text
     }

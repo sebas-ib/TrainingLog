@@ -17,7 +17,7 @@ final class ExerciseSeedDataTests: XCTestCase {
     func testStarterExerciseCount() {
         XCTAssertEqual(
             ExerciseSeedData.starterExercises.count,
-            67
+            69
         )
     }
 

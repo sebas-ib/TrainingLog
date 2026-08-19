@@ -75,11 +75,11 @@ struct MuscleGroupDetailView: View {
                     ForEach(targets, id: \.target) { entry in
                         NavigationLink {
                             MuscleExerciseListView(
-                                title: entry.target.rawValue,
+                                title: entry.target.displayName,
                                 exercises: breakdown.exercises(for: entry.target)
                             )
                         } label: {
-                            muscleRow(name: entry.target.rawValue, count: entry.count)
+                            muscleRow(name: entry.target.displayName, count: entry.count)
                         }
                     }
 

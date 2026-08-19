@@ -43,6 +43,8 @@ enum ExerciseSeedData {
         ("Leg Extension", [.quads], [], .weightReps),
         ("Hip Thrust", [.glutes], [.hamstrings], .weightReps),
         ("Glute Bridge", [.glutes], [.hamstrings], .bodyweightReps),
+        ("Hip Abduction Machine", [.abductors], [.glutes], .weightReps),
+        ("Hip Adduction Machine", [.adductors], [], .weightReps),
         ("Calf Raise", [.calves], [], .weightReps),
         ("Seated Calf Raise", [.calves], [], .weightReps),
 
