@@ -21,6 +21,11 @@ struct ContentView: View {
                 .tabItem {
                     Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
                 }
+
+            BalanceView()
+                .tabItem {
+                    Label("Balance", systemImage: "target")
+                }
         }
         .tint(Theme.accent)
         .task {
