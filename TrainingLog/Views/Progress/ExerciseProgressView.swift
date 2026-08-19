@@ -10,10 +10,21 @@ import Charts
 
 struct ExerciseProgressView: View {
     @EnvironmentObject private var unitSettings: UnitSettings
-    let exercise: Exercise
-    
+    @Bindable var exercise: Exercise
+
     @Query(sort: \WorkoutExercise.loggedAt, order: .forward) private var allWorkoutExercises: [WorkoutExercise]
-    
+
+    @State private var showingEditSheet = false
+
+    private var muscleTargetsSummary: String? {
+        guard !exercise.primaryMuscleTargets.isEmpty else { return nil }
+        var text = exercise.primaryMuscleTargets.map(\.rawValue).joined(separator: ", ")
+        if !exercise.secondaryMuscleTargets.isEmpty {
+            text += " · also " + exercise.secondaryMuscleTargets.map(\.rawValue).joined(separator: ", ")
+        }
+        return text
+    }
+
     private var loggingType: ExerciseLoggingType {
         exercise.loggingType
     }
@@ -164,6 +175,13 @@ struct ExerciseProgressView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if let muscleTargetsSummary {
+                    Text(muscleTargetsSummary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal)
+                }
+
                 if dataPoints.isEmpty {
                     ContentUnavailableView(
                         "No Data Yet",
@@ -215,6 +233,21 @@ struct ExerciseProgressView: View {
         }
         .navigationTitle(exercise.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingEditSheet = true
+                } label: {
+                    Image(systemName: "pencil")
+                        .foregroundStyle(Theme.accent)
+                }
+                .accessibilityLabel("Edit exercise")
+            }
+        }
+        .sheet(isPresented: $showingEditSheet) {
+            ExerciseFormView(editing: exercise) { _ in }
+        }
     }
 }
 

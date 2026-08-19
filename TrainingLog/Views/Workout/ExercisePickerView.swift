@@ -110,7 +110,7 @@ struct ExercisePickerView: View {
                 }
             }
             .sheet(isPresented: $showingNewExerciseSheet) {
-                NewExerciseView(name: searchText) { exercise in
+                ExerciseFormView(name: searchText) { exercise in
                     onSelect(exercise)
                     dismiss()
                 }

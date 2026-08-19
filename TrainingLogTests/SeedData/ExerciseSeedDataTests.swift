@@ -17,7 +17,7 @@ final class ExerciseSeedDataTests: XCTestCase {
     func testStarterExerciseCount() {
         XCTAssertEqual(
             ExerciseSeedData.starterExercises.count,
-            29
+            67
         )
     }
 
@@ -29,13 +29,14 @@ final class ExerciseSeedDataTests: XCTestCase {
         XCTAssertTrue(names.contains("Pull-Up"))
         XCTAssertTrue(names.contains("Bicep Curl"))
         XCTAssertTrue(names.contains("Plank"))
+        XCTAssertTrue(names.contains("Running"))
     }
 
     func testStarterExerciseConfigurations() {
         let benchPress = starterExercise(named: "Bench Press")
 
-        XCTAssertEqual(benchPress?.primary, .chest)
-        XCTAssertEqual(benchPress?.secondary, .arms)
+        XCTAssertEqual(benchPress?.primary, [.middleChest])
+        XCTAssertEqual(benchPress?.secondary, [.frontDelts, .tricepsLateralHead, .tricepsMedialHead])
         XCTAssertEqual(
             benchPress?.type,
             ExerciseLoggingType.weightReps
@@ -43,8 +44,8 @@ final class ExerciseSeedDataTests: XCTestCase {
 
         let pullUp = starterExercise(named: "Pull-Up")
 
-        XCTAssertEqual(pullUp?.primary, .back)
-        XCTAssertEqual(pullUp?.secondary, .arms)
+        XCTAssertEqual(pullUp?.primary, [.lats])
+        XCTAssertEqual(pullUp?.secondary, [.bicepsLongHead, .bicepsShortHead])
         XCTAssertEqual(
             pullUp?.type,
             ExerciseLoggingType.bodyweightReps
@@ -52,8 +53,8 @@ final class ExerciseSeedDataTests: XCTestCase {
 
         let plank = starterExercise(named: "Plank")
 
-        XCTAssertEqual(plank?.primary, .core)
-        XCTAssertNil(plank?.secondary)
+        XCTAssertEqual(plank?.primary, [.abs])
+        XCTAssertEqual(plank?.secondary, [.obliques])
         XCTAssertEqual(
             plank?.type,
             ExerciseLoggingType.time
@@ -82,12 +83,12 @@ final class ExerciseSeedDataTests: XCTestCase {
             XCTAssertFalse(exercise.isCustom)
 
             XCTAssertEqual(
-                exercise.muscleGroup,
+                exercise.primaryMuscleTargets,
                 entry.primary
             )
 
             XCTAssertEqual(
-                exercise.secondaryMuscleGroup,
+                exercise.secondaryMuscleTargets,
                 entry.secondary
             )
 
@@ -112,7 +113,7 @@ final class ExerciseSeedDataTests: XCTestCase {
         )
     }
 
-    func testSeedIfNeededDoesNotSeedWhenExercisesAlreadyExist() throws {
+    func testSeedIfNeededAddsStarterExercisesAlongsideExistingCustomExercise() throws {
         let context = try makeModelContext()
 
         let customExercise = Exercise(
@@ -130,16 +131,73 @@ final class ExerciseSeedDataTests: XCTestCase {
 
         let exercises = try fetchExercises(context: context)
 
-        XCTAssertEqual(exercises.count, 1)
+        XCTAssertEqual(
+            exercises.count,
+            ExerciseSeedData.starterExercises.count + 1
+        )
+
+        let custom = try XCTUnwrap(
+            exercises.first { $0.name == "My Custom Exercise" }
+        )
+        XCTAssertTrue(custom.isCustom)
+        XCTAssertEqual(custom.muscleGroup, .chest)
+    }
+
+    func testSeedIfNeededBackfillsUntaggedNonCustomExercise() throws {
+        let context = try makeModelContext()
+
+        // Simulates a device seeded before target-level detail existed:
+        // a non-custom exercise sharing a starter name, but with no
+        // muscle targets yet.
+        let staleExercise = Exercise(
+            name: "Bench Press",
+            isCustom: false,
+            muscleGroup: .chest,
+            secondaryMuscleGroup: nil,
+            loggingType: .weightReps
+        )
+        context.insert(staleExercise)
+        try context.save()
+
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let exercises = try fetchExercises(context: context)
 
         XCTAssertEqual(
-            exercises.first?.name,
-            "My Custom Exercise"
+            exercises.count,
+            ExerciseSeedData.starterExercises.count
         )
 
-        XCTAssertTrue(
-            exercises.first?.isCustom == true
+        let benchPress = try XCTUnwrap(
+            exercises.first { $0.name == "Bench Press" }
         )
+        XCTAssertEqual(benchPress.primaryMuscleTargets, [.middleChest])
+        XCTAssertEqual(benchPress.secondaryMuscleTargets, [.frontDelts, .tricepsLateralHead, .tricepsMedialHead])
+    }
+
+    func testSeedIfNeededDoesNotOverwriteCustomExerciseWithMatchingName() throws {
+        let context = try makeModelContext()
+
+        let customExercise = Exercise(
+            name: "Bench Press",
+            isCustom: true,
+            muscleGroup: .biceps,
+            secondaryMuscleGroup: nil,
+            loggingType: .weightReps
+        )
+        context.insert(customExercise)
+        try context.save()
+
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let exercises = try fetchExercises(context: context)
+        let benchPress = try XCTUnwrap(
+            exercises.first { $0.name == "Bench Press" }
+        )
+
+        XCTAssertTrue(benchPress.isCustom)
+        XCTAssertTrue(benchPress.primaryMuscleTargets.isEmpty)
+        XCTAssertEqual(benchPress.muscleGroup, .biceps)
     }
 
     // MARK: - Helpers
@@ -169,8 +227,8 @@ final class ExerciseSeedDataTests: XCTestCase {
         named name: String
     ) -> (
         name: String,
-        primary: MuscleGroup,
-        secondary: MuscleGroup?,
+        primary: [MuscleTarget],
+        secondary: [MuscleTarget],
         type: ExerciseLoggingType
     )? {
         ExerciseSeedData.starterExercises.first {

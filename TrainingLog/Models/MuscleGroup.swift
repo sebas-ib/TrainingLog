@@ -13,17 +13,21 @@ enum MuscleGroup: String, CaseIterable, Codable {
     case back = "Back"
     case legs = "Legs"
     case shoulders = "Shoulders"
-    case arms = "Arms"
+    case biceps = "Biceps"
+    case triceps = "Triceps"
+    case forearms = "Forearms"
     case core = "Core"
     case other = "Other"
-    
+
     var icon: String {
         switch self {
         case .chest: return "figure.strengthtraining.traditional"
         case .back: return "figure.rower"
         case .legs: return "figure.strengthtraining.functional"
         case .shoulders: return "figure.arms.open"
-        case .arms: return "dumbbell.fill"
+        case .biceps: return "dumbbell.fill"
+        case .triceps: return "figure.boxing"
+        case .forearms: return "hand.raised.fill"
         case .core: return "figure.core.training"
         case .other: return "questionmark.circle"
         }
