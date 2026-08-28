@@ -88,7 +88,10 @@ enum WorkoutCalculations {
         for workoutExercise in session.exercises {
             let exerciseVolume = volume(for: workoutExercise)
             guard exerciseVolume > 0 else { continue }
-            let group = workoutExercise.exercise.muscleGroup
+            // Same resolution the set breakdown uses, so a session's
+            // volume and its set counts can't attribute the same work to
+            // different muscle groups.
+            let group = workoutExercise.resolvedMuscleGroup
             result[group, default: 0] += exerciseVolume
         }
 
@@ -357,17 +360,36 @@ enum WorkoutCalculations {
 
     // MARK: - Sets by Muscle
 
-    /// One exercise's contribution — total sets logged over the range in
+    /// One variation's contribution — total sets logged over the range in
     /// question — to a muscle or muscle group.
+    ///
+    /// Keyed per variation rather than per exercise, because two
+    /// variations of one movement can land on entirely different muscles:
+    /// collapsing them would produce a single "Leg Press — 6 sets" row
+    /// appearing under both quads and hamstrings with no way to tell
+    /// which sets went where.
     struct MuscleExerciseContribution: Identifiable {
         let exercise: Exercise
+        let variant: ExerciseVariant?
         let sets: Int
-        var id: PersistentIdentifier { exercise.persistentModelID }
+
+        var id: VariantKey { key }
+        var displayName: String { exercise.displayName(for: variant) }
+
+        fileprivate let key: VariantKey
     }
 
     fileprivate struct ExerciseAccumulator {
         let exercise: Exercise
+        let variant: ExerciseVariant?
+        let key: VariantKey
         var sets: Int = 0
+
+        init(_ workoutExercise: WorkoutExercise) {
+            exercise = workoutExercise.exercise
+            variant = workoutExercise.variant
+            key = VariantKey(workoutExercise)
+        }
     }
 
     /// Set totals for one `MuscleGroup` over a date range, broken down by
@@ -386,9 +408,9 @@ enum WorkoutCalculations {
         fileprivate(set) var untaggedSets: Int = 0
 
         fileprivate var targetSetCounts: [MuscleTarget: Int] = [:]
-        fileprivate var exerciseAccumulatorsByTarget: [MuscleTarget: [PersistentIdentifier: ExerciseAccumulator]] = [:]
-        fileprivate var untaggedExerciseAccumulators: [PersistentIdentifier: ExerciseAccumulator] = [:]
-        fileprivate var allExerciseAccumulators: [PersistentIdentifier: ExerciseAccumulator] = [:]
+        fileprivate var exerciseAccumulatorsByTarget: [MuscleTarget: [VariantKey: ExerciseAccumulator]] = [:]
+        fileprivate var untaggedExerciseAccumulators: [VariantKey: ExerciseAccumulator] = [:]
+        fileprivate var allExerciseAccumulators: [VariantKey: ExerciseAccumulator] = [:]
 
         init() {}
 
@@ -411,12 +433,19 @@ enum WorkoutCalculations {
         }
 
         private static func sorted(
-            _ accumulators: [PersistentIdentifier: ExerciseAccumulator]
+            _ accumulators: [VariantKey: ExerciseAccumulator]
         ) -> [MuscleExerciseContribution] {
             accumulators.values
-                .map { MuscleExerciseContribution(exercise: $0.exercise, sets: $0.sets) }
+                .map {
+                    MuscleExerciseContribution(
+                        exercise: $0.exercise,
+                        variant: $0.variant,
+                        sets: $0.sets,
+                        key: $0.key
+                    )
+                }
                 .sorted {
-                    $0.sets == $1.sets ? $0.exercise.name < $1.exercise.name : $0.sets > $1.sets
+                    $0.sets == $1.sets ? $0.displayName < $1.displayName : $0.sets > $1.sets
                 }
         }
     }
@@ -435,28 +464,33 @@ enum WorkoutCalculations {
             let setCount = workoutExercise.sets.count
             guard setCount > 0 else { continue }
 
-            let exercise = workoutExercise.exercise
-            let exerciseID = exercise.persistentModelID
-            let targets = exercise.primaryMuscleTargets
+            let key = VariantKey(workoutExercise)
+            let accumulator = ExerciseAccumulator(workoutExercise)
+
+            // Resolved through the variation — this is the whole point of
+            // variants existing. A high-foot leg press trains hamstrings,
+            // so its sets must land there rather than under the parent's
+            // quads.
+            let targets = workoutExercise.resolvedPrimaryTargets
 
             if targets.isEmpty {
-                let group = exercise.muscleGroup
+                let group = workoutExercise.resolvedMuscleGroup
                 var breakdown = result[group] ?? MuscleGroupBreakdown()
                 breakdown.totalSets += setCount
                 breakdown.untaggedSets += setCount
-                breakdown.untaggedExerciseAccumulators[exerciseID, default: ExerciseAccumulator(exercise: exercise)].sets += setCount
-                breakdown.allExerciseAccumulators[exerciseID, default: ExerciseAccumulator(exercise: exercise)].sets += setCount
+                breakdown.untaggedExerciseAccumulators[key, default: accumulator].sets += setCount
+                breakdown.allExerciseAccumulators[key, default: accumulator].sets += setCount
                 result[group] = breakdown
             } else {
                 for (group, groupTargets) in Dictionary(grouping: targets, by: { $0.muscleGroup }) {
                     var breakdown = result[group] ?? MuscleGroupBreakdown()
                     breakdown.totalSets += setCount
-                    breakdown.allExerciseAccumulators[exerciseID, default: ExerciseAccumulator(exercise: exercise)].sets += setCount
+                    breakdown.allExerciseAccumulators[key, default: accumulator].sets += setCount
 
                     for target in groupTargets {
                         breakdown.targetSetCounts[target, default: 0] += setCount
                         var targetAccumulators = breakdown.exerciseAccumulatorsByTarget[target] ?? [:]
-                        targetAccumulators[exerciseID, default: ExerciseAccumulator(exercise: exercise)].sets += setCount
+                        targetAccumulators[key, default: accumulator].sets += setCount
                         breakdown.exerciseAccumulatorsByTarget[target] = targetAccumulators
                     }
 

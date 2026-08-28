@@ -57,6 +57,14 @@ class WorkoutExercise {
     var resolvedDisplayName: String {
         exercise.displayName(for: variant)
     }
+
+    /// The broad group this instance actually trained. Derived from the
+    /// resolved targets so a variation that retargets the movement is
+    /// counted where it belongs, falling back to the exercise's own group
+    /// when neither it nor its variation names specific muscles.
+    var resolvedMuscleGroup: MuscleGroup {
+        resolvedPrimaryTargets.first?.muscleGroup ?? exercise.muscleGroup
+    }
 }
 
 extension WorkoutExercise: Orderable {}

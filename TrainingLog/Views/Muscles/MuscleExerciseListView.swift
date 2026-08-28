@@ -25,7 +25,7 @@ struct MuscleExerciseListView: View {
                         ExerciseProgressView(exercise: contribution.exercise)
                     } label: {
                         HStack {
-                            Text(contribution.exercise.name)
+                            Text(contribution.displayName)
                             Spacer()
                             Text("\(contribution.sets) set\(contribution.sets == 1 ? "" : "s")")
                                 .foregroundStyle(.secondary)

@@ -105,7 +105,7 @@ struct MuscleGroupDetailView: View {
                         NavigationLink {
                             ExerciseProgressView(exercise: contribution.exercise)
                         } label: {
-                            muscleRow(name: contribution.exercise.name, count: contribution.sets)
+                            muscleRow(name: contribution.displayName, count: contribution.sets)
                         }
                     }
                 }
