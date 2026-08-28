@@ -144,7 +144,7 @@ enum WorkoutCalculations {
     /// ExerciseProgressView already charts per logging type. nil if
     /// every set is still at its empty default (nothing to record).
     static func primaryMetricValue(for instance: WorkoutExercise) -> Double? {
-        switch instance.exercise.loggingType {
+        switch instance.resolvedLoggingType {
         case .weightReps:
             let value = instance.sets.map(\.weight).max() ?? 0
             return value > 0 ? value : nil
@@ -163,13 +163,35 @@ enum WorkoutCalculations {
         }
     }
 
-    /// Every point in an exercise's history where its primary metric beat
-    /// every instance before it — i.e. every personal record ever set,
-    /// oldest first. The very first logged instance never counts (there's
-    /// nothing yet to beat), so a brand-new exercise's first session isn't
-    /// noise here.
+    /// Identifies one *variation* of a movement — the unit a record is
+    /// actually tracked against. A nil variant is its own bucket
+    /// ("logged without specifying"), not a wildcard that merges with
+    /// the others.
+    struct VariantKey: Hashable {
+        let exercise: PersistentIdentifier
+        let variant: PersistentIdentifier?
+
+        init(_ workoutExercise: WorkoutExercise) {
+            exercise = workoutExercise.exercise.persistentModelID
+            variant = workoutExercise.variant?.persistentModelID
+        }
+    }
+
+    /// Every point in one variation's history where its primary metric
+    /// beat every instance before it — i.e. every personal record ever
+    /// set, oldest first. The very first logged instance never counts
+    /// (there's nothing yet to beat), so a brand-new movement's first
+    /// session isn't noise here.
+    ///
+    /// Expects a single variation's history. Passing mixed variations
+    /// would compare loads that aren't comparable — a 400 lb low-foot
+    /// press would permanently mask every high-foot best — which is why
+    /// `recentPersonalRecords` groups by `VariantKey` rather than by
+    /// exercise.
     static func personalRecordHistory(for exerciseHistory: [WorkoutExercise]) -> [PersonalRecord] {
-        guard let exercise = exerciseHistory.first?.exercise else { return [] }
+        guard let first = exerciseHistory.first else { return [] }
+        let exercise = first.exercise
+        let variant = first.variant
 
         let sorted = exerciseHistory.sorted { $0.loggedAt < $1.loggedAt }
         var best: Double?
@@ -179,7 +201,14 @@ enum WorkoutCalculations {
             guard let value = primaryMetricValue(for: instance) else { continue }
 
             if let currentBest = best, value > currentBest {
-                records.append(PersonalRecord(exercise: exercise, date: instance.loggedAt, value: value))
+                records.append(
+                    PersonalRecord(
+                        exercise: exercise,
+                        variant: variant,
+                        date: instance.loggedAt,
+                        value: value
+                    )
+                )
             }
 
             best = max(best ?? value, value)
@@ -188,14 +217,80 @@ enum WorkoutCalculations {
         return records
     }
 
-    /// Every personal record across every exercise, most recent first —
-    /// what a "recent PRs" feed shows.
+    /// Every personal record across every variation of every exercise,
+    /// most recent first — what a "recent PRs" feed shows.
     static func recentPersonalRecords(from allWorkoutExercises: [WorkoutExercise]) -> [PersonalRecord] {
-        let byExercise = Dictionary(grouping: allWorkoutExercises) { $0.exercise.persistentModelID }
+        let byVariation = Dictionary(grouping: allWorkoutExercises) { VariantKey($0) }
 
-        return byExercise.values
+        return byVariation.values
             .flatMap { personalRecordHistory(for: $0) }
             .sorted { $0.date > $1.date }
+    }
+
+    // MARK: - Variation Series
+
+    /// One variation's slice of an exercise's history — a single line on
+    /// the progress chart.
+    struct VariationSeries: Identifiable {
+        let variant: ExerciseVariant?
+        let label: String
+        let loggingType: ExerciseLoggingType
+        let instances: [WorkoutExercise]
+
+        /// Variation names are unique within an exercise, and the
+        /// unspecified bucket has no name to collide with.
+        var id: String { label }
+    }
+
+    static let unspecifiedVariationLabel = "Unspecified"
+
+    /// Splits an exercise's history into one series per variation,
+    /// ordered the way the variants themselves are, with anything logged
+    /// without a variation last — it's the residual bucket, not the
+    /// headline.
+    static func variationSeries(
+        for exercise: Exercise,
+        in history: [WorkoutExercise]
+    ) -> [VariationSeries] {
+        let mine = history.filter {
+            $0.exercise.persistentModelID == exercise.persistentModelID
+        }
+        guard !mine.isEmpty else { return [] }
+
+        let grouped = Dictionary(grouping: mine) { $0.variant?.persistentModelID }
+
+        var series: [VariationSeries] = exercise.sortedVariants.compactMap { variant in
+            guard let instances = grouped[variant.persistentModelID], !instances.isEmpty else {
+                return nil
+            }
+            return VariationSeries(
+                variant: variant,
+                label: variant.name,
+                loggingType: exercise.loggingType(for: variant),
+                instances: instances.sorted { $0.loggedAt < $1.loggedAt }
+            )
+        }
+
+        if let untagged = grouped[nil], !untagged.isEmpty {
+            series.append(
+                VariationSeries(
+                    variant: nil,
+                    label: unspecifiedVariationLabel,
+                    loggingType: exercise.loggingType,
+                    instances: untagged.sorted { $0.loggedAt < $1.loggedAt }
+                )
+            )
+        }
+
+        return series
+    }
+
+    /// Whether every series measures the same way. When they don't — a
+    /// timed variation alongside a weight-based one — they can't share a
+    /// Y axis, so the chart has to show one at a time instead of
+    /// overlaying them.
+    static func sharesLoggingType(_ series: [VariationSeries]) -> Bool {
+        Set(series.map(\.loggingType)).count <= 1
     }
 
     // MARK: - Streaks
@@ -395,6 +490,19 @@ enum WorkoutCalculations {
 struct PersonalRecord: Identifiable {
     let id = UUID()
     let exercise: Exercise
+    let variant: ExerciseVariant?
     let date: Date
     let value: Double
+
+    /// "Leg Press · High Foot" — without this, two records for different
+    /// variations of the same movement would read as duplicate rows.
+    var displayName: String {
+        exercise.displayName(for: variant)
+    }
+
+    /// The logging type the record's `value` is expressed in — resolved,
+    /// since a variation can change how the movement is measured.
+    var loggingType: ExerciseLoggingType {
+        exercise.loggingType(for: variant)
+    }
 }

@@ -103,8 +103,18 @@ struct ProgressView: View {
     /// type without special-casing.
     private func trend(for exercise: Exercise) -> Trend? {
         guard let history = historyByExercise[exercise.persistentModelID] else { return nil }
-        let values = history
-            .sorted { $0.loggedAt < $1.loggedAt }
+
+        // Compared within a single variation — "how is what I'm currently
+        // doing going" — rather than across all of them. An incline
+        // session following a heavier flat one isn't a decline, and
+        // reading it as one would put a down arrow on the row every time
+        // the user switched variation.
+        let sorted = history.sorted { $0.loggedAt < $1.loggedAt }
+        guard let latest = sorted.last else { return nil }
+        let currentVariant = latest.variant?.persistentModelID
+
+        let values = sorted
+            .filter { $0.variant?.persistentModelID == currentVariant }
             .compactMap { WorkoutCalculations.primaryMetricValue(for: $0) }
 
         guard values.count >= 2 else { return nil }

@@ -51,7 +51,10 @@ private struct PersonalRecordRow: View {
     @EnvironmentObject private var unitSettings: UnitSettings
 
     private var formattedValue: String {
-        switch record.exercise.loggingType {
+        // Resolved via the record's variation: a timed variation of an
+        // otherwise weight-based movement would render as pounds if this
+        // read the parent exercise's type.
+        switch record.loggingType {
         case .weightReps:
             let converted = unitSettings.unit.convert(fromLbs: record.value)
             return "\(String(format: "%.0f", converted)) \(unitSettings.unit.rawValue)"
@@ -77,7 +80,7 @@ private struct PersonalRecordRow: View {
                 .background(Circle().fill(Theme.accent.opacity(0.12)))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(record.exercise.name)
+                Text(record.displayName)
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(1)
 
