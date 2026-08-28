@@ -22,13 +22,32 @@ struct ExercisePickerView: View {
     @State private var exerciseBlockedFromDeletion: Exercise?
     @State private var saveError: Error?
 
-    let onSelect: (Exercise) -> Void
+    @State private var exerciseAwaitingVariant: Exercise?
+
+    let onSelect: (Exercise, ExerciseVariant?) -> Void
+
+    /// Search matches variant names as well as the exercise's own, so
+    /// folding "Incline Bench Press" into a variant of "Bench Press"
+    /// doesn't make it unfindable — typing "incline" still surfaces the
+    /// parent, and the row says which variants matched.
+    private func matches(_ exercise: Exercise, _ query: String) -> Bool {
+        exercise.name.localizedCaseInsensitiveContains(query)
+            || exercise.variants.contains { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    private func matchingVariantNames(_ exercise: Exercise) -> [String] {
+        guard !searchText.isEmpty else { return [] }
+        guard !exercise.name.localizedCaseInsensitiveContains(searchText) else { return [] }
+        return exercise.sortedVariants
+            .filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            .map(\.name)
+    }
 
     private var filteredExercises: [Exercise] {
         var result = exercises
 
         if !searchText.isEmpty {
-            result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            result = result.filter { matches($0, searchText) }
         }
 
         if let selectedTarget {
@@ -109,6 +128,32 @@ struct ExercisePickerView: View {
 
     private func hasHistory(_ exercise: Exercise) -> Bool {
         allWorkoutExercises.contains { $0.exercise.persistentModelID == exercise.persistentModelID }
+    }
+
+    // MARK: - Variant Selection
+
+    /// The variant this exercise was logged with most recently. Derived
+    /// from history rather than stored anywhere — you almost always
+    /// repeat the same variation, so the last one used is the right
+    /// default, and deriving it means there's no preference to keep in
+    /// sync or go stale.
+    private func lastUsedVariant(for exercise: Exercise) -> ExerciseVariant? {
+        allWorkoutExercises
+            .filter { $0.exercise.persistentModelID == exercise.persistentModelID }
+            .max { $0.loggedAt < $1.loggedAt }?
+            .variant
+    }
+
+    /// Exercises with no variants dismiss straight through, exactly as
+    /// before — the variant sheet only ever appears when there's an
+    /// actual choice to make.
+    private func choose(_ exercise: Exercise) {
+        if exercise.variants.isEmpty {
+            onSelect(exercise, nil)
+            dismiss()
+        } else {
+            exerciseAwaitingVariant = exercise
+        }
     }
 
     private func requestDelete(_ exercise: Exercise) {
@@ -210,7 +255,17 @@ struct ExercisePickerView: View {
             }
             .sheet(isPresented: $showingNewExerciseSheet) {
                 ExerciseFormView(name: searchText) { exercise in
-                    onSelect(exercise)
+                    onSelect(exercise, nil)
+                    dismiss()
+                }
+            }
+            .sheet(item: $exerciseAwaitingVariant) { exercise in
+                VariantPickerSheet(
+                    exercise: exercise,
+                    suggested: lastUsedVariant(for: exercise)
+                ) { variant in
+                    exerciseAwaitingVariant = nil
+                    onSelect(exercise, variant)
                     dismiss()
                 }
             }
@@ -220,8 +275,7 @@ struct ExercisePickerView: View {
                 presenting: duplicateSuggestion
             ) { suggestion in
                 Button("Use \"\(suggestion.name)\"") {
-                    onSelect(suggestion)
-                    dismiss()
+                    choose(suggestion)
                 }
                 Button("Create \"\(searchText)\" Anyway") {
                     showingNewExerciseSheet = true
@@ -261,14 +315,27 @@ struct ExercisePickerView: View {
 
     private func exerciseRow(_ exercise: Exercise) -> some View {
         Button {
-            onSelect(exercise)
-            dismiss()
+            choose(exercise)
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(exercise.name)
                         .foregroundStyle(.primary)
-                    if let secondary = exercise.secondaryMuscleGroup {
+
+                    // When the row only matched because one of its
+                    // variants did, say which — otherwise searching
+                    // "incline" would surface a bare "Bench Press" with
+                    // no indication of why.
+                    let matched = matchingVariantNames(exercise)
+                    if !matched.isEmpty {
+                        Text(matched.joined(separator: " · "))
+                            .font(.caption2)
+                            .foregroundStyle(Theme.accent)
+                    } else if !exercise.variants.isEmpty {
+                        Text("\(exercise.variants.count) variations")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else if let secondary = exercise.secondaryMuscleGroup {
                         Text("Also: \(secondary.rawValue)")
                             .font(.caption2)
                             .foregroundStyle(.secondary)

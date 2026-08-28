@@ -40,7 +40,8 @@ struct ContentView: View {
         WorkoutSession.self,
         WorkoutExercise.self,
         ExerciseSet.self,
-        Exercise.self
+        Exercise.self,
+        ExerciseVariant.self
     ])
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: schema, configurations: [config])

@@ -2,112 +2,317 @@ import Foundation
 import SwiftData
 
 enum ExerciseSeedData {
-    static let starterExercises: [(
-        name: String,
-        primary: [MuscleTarget],
-        secondary: [MuscleTarget],
-        type: ExerciseLoggingType
-    )] = [
+
+    /// A seeded variant. Empty target lists and a nil `type` mean
+    /// "inherit the parent" — see `ExerciseVariant`. Several entries here
+    /// override nothing at all and exist purely to give two ways of doing
+    /// the same movement their own history (Pull-Up's grips, Calf Raise's
+    /// standing vs. seated).
+    struct StarterVariant {
+        let name: String
+        var primary: [MuscleTarget] = []
+        var secondary: [MuscleTarget] = []
+        var type: ExerciseLoggingType? = nil
+    }
+
+    struct StarterExercise {
+        let name: String
+        let primary: [MuscleTarget]
+        let secondary: [MuscleTarget]
+        let type: ExerciseLoggingType
+        var variants: [StarterVariant] = []
+    }
+
+    /// Where an exercise has variants, the first one is the plain/default
+    /// way of doing it and deliberately overrides nothing — so the picker
+    /// offers "Flat / Incline / Decline" rather than the more confusing
+    /// "unspecified / Incline / Decline".
+    static let starterExercises: [StarterExercise] = [
         // MARK: - Chest
-        ("Bench Press", [.middleChest], [.frontDelts, .tricepsLateralHead, .tricepsMedialHead], .weightReps),
-        ("Incline Bench Press", [.upperChest], [.frontDelts, .tricepsLateralHead, .tricepsMedialHead], .weightReps),
-        ("Decline Bench Press", [.lowerChest], [.tricepsLateralHead, .tricepsMedialHead], .weightReps),
-        ("Dumbbell Press", [.middleChest], [.frontDelts, .tricepsLateralHead, .tricepsMedialHead], .weightReps),
-        ("Incline Dumbbell Press", [.upperChest], [.frontDelts], .weightReps),
-        ("Push-Up", [.middleChest], [.tricepsLateralHead, .tricepsMedialHead, .frontDelts], .bodyweightReps),
-        ("Incline Push-Up", [.lowerChest], [.tricepsLateralHead, .tricepsMedialHead], .bodyweightReps),
-        ("Chest Fly", [.middleChest], [], .weightReps),
-        ("Cable Crossover", [.lowerChest], [.middleChest], .weightReps),
-        ("Dip", [.lowerChest], [.tricepsLateralHead, .tricepsMedialHead], .bodyweightReps),
+        StarterExercise(
+            name: "Bench Press",
+            primary: [.middleChest],
+            secondary: [.frontDelts, .tricepsLateralHead, .tricepsMedialHead],
+            type: .weightReps,
+            variants: [
+                StarterVariant(name: "Flat"),
+                StarterVariant(
+                    name: "Incline",
+                    primary: [.upperChest],
+                    secondary: [.frontDelts, .tricepsLateralHead, .tricepsMedialHead]
+                ),
+                StarterVariant(
+                    name: "Decline",
+                    primary: [.lowerChest],
+                    secondary: [.tricepsLateralHead, .tricepsMedialHead]
+                ),
+                StarterVariant(
+                    name: "Close-Grip",
+                    primary: [.tricepsLateralHead, .tricepsMedialHead],
+                    secondary: [.middleChest]
+                )
+            ]
+        ),
+        StarterExercise(
+            name: "Dumbbell Press",
+            primary: [.middleChest],
+            secondary: [.frontDelts, .tricepsLateralHead, .tricepsMedialHead],
+            type: .weightReps,
+            variants: [
+                StarterVariant(name: "Flat"),
+                StarterVariant(
+                    name: "Incline",
+                    primary: [.upperChest],
+                    secondary: [.frontDelts]
+                )
+            ]
+        ),
+        StarterExercise(
+            name: "Push-Up",
+            primary: [.middleChest],
+            secondary: [.tricepsLateralHead, .tricepsMedialHead, .frontDelts],
+            type: .bodyweightReps,
+            variants: [
+                StarterVariant(name: "Standard"),
+                StarterVariant(
+                    name: "Incline",
+                    primary: [.lowerChest],
+                    secondary: [.tricepsLateralHead, .tricepsMedialHead]
+                )
+            ]
+        ),
+        StarterExercise(
+            name: "Dip",
+            primary: [.lowerChest],
+            secondary: [.tricepsLateralHead, .tricepsMedialHead],
+            type: .bodyweightReps,
+            variants: [
+                StarterVariant(name: "Chest"),
+                StarterVariant(
+                    name: "Triceps",
+                    primary: [.tricepsLateralHead, .tricepsMedialHead],
+                    secondary: [.lowerChest]
+                )
+            ]
+        ),
+        StarterExercise(name: "Chest Fly", primary: [.middleChest], secondary: [], type: .weightReps),
+        StarterExercise(name: "Cable Crossover", primary: [.lowerChest], secondary: [.middleChest], type: .weightReps),
 
         // MARK: - Back
-        ("Deadlift", [.lowerBack], [.hamstrings, .glutes, .traps], .weightReps),
-        ("Romanian Deadlift", [.hamstrings], [.glutes, .lowerBack], .weightReps),
-        ("Pull-Up", [.lats], [.bicepsLongHead, .bicepsShortHead], .bodyweightReps),
-        ("Chin-Up", [.lats], [.bicepsLongHead, .bicepsShortHead], .bodyweightReps),
-        ("Lat Pulldown", [.lats], [.bicepsLongHead, .bicepsShortHead], .weightReps),
-        ("Bent-Over Row", [.midBack], [.lats, .bicepsLongHead, .bicepsShortHead], .weightReps),
-        ("Seated Cable Row", [.midBack], [.lats, .bicepsLongHead, .bicepsShortHead], .weightReps),
-        ("T-Bar Row", [.midBack], [.lats], .weightReps),
-        ("Single-Arm Dumbbell Row", [.lats], [.midBack, .bicepsLongHead, .bicepsShortHead], .weightReps),
-        ("Shrug", [.traps], [], .weightReps),
-        ("Hyperextension", [.lowerBack], [.glutes, .hamstrings], .bodyweightReps),
+        StarterExercise(
+            name: "Deadlift",
+            primary: [.lowerBack],
+            secondary: [.hamstrings, .glutes, .traps],
+            type: .weightReps,
+            variants: [
+                StarterVariant(name: "Conventional"),
+                StarterVariant(
+                    name: "Sumo",
+                    primary: [.quads, .glutes],
+                    secondary: [.adductors, .lowerBack, .hamstrings]
+                )
+            ]
+        ),
+        StarterExercise(name: "Romanian Deadlift", primary: [.hamstrings], secondary: [.glutes, .lowerBack], type: .weightReps),
+        StarterExercise(
+            name: "Pull-Up",
+            primary: [.lats],
+            secondary: [.bicepsLongHead, .bicepsShortHead],
+            type: .bodyweightReps,
+            variants: [
+                StarterVariant(name: "Overhand"),
+                StarterVariant(name: "Chin-Up"),
+                StarterVariant(name: "Neutral Grip")
+            ]
+        ),
+        StarterExercise(
+            name: "Lat Pulldown",
+            primary: [.lats],
+            secondary: [.bicepsLongHead, .bicepsShortHead],
+            type: .weightReps,
+            variants: [
+                StarterVariant(name: "Wide Grip"),
+                StarterVariant(
+                    name: "Close Grip",
+                    primary: [.lats],
+                    secondary: [.midBack, .bicepsLongHead, .bicepsShortHead]
+                ),
+                StarterVariant(name: "Neutral Grip")
+            ]
+        ),
+        StarterExercise(
+            name: "Bent-Over Row",
+            primary: [.midBack],
+            secondary: [.lats, .bicepsLongHead, .bicepsShortHead],
+            type: .weightReps,
+            variants: [
+                StarterVariant(
+                    name: "Overhand",
+                    primary: [.midBack],
+                    secondary: [.rearDelts, .lats]
+                ),
+                StarterVariant(
+                    name: "Underhand",
+                    primary: [.lats],
+                    secondary: [.midBack, .bicepsLongHead, .bicepsShortHead]
+                )
+            ]
+        ),
+        StarterExercise(
+            name: "Seated Cable Row",
+            primary: [.midBack],
+            secondary: [.lats, .bicepsLongHead, .bicepsShortHead],
+            type: .weightReps,
+            variants: [
+                StarterVariant(
+                    name: "Wide Grip",
+                    primary: [.midBack],
+                    secondary: [.rearDelts, .lats]
+                ),
+                StarterVariant(
+                    name: "Close Grip",
+                    primary: [.lats],
+                    secondary: [.midBack, .bicepsLongHead, .bicepsShortHead]
+                )
+            ]
+        ),
+        StarterExercise(name: "T-Bar Row", primary: [.midBack], secondary: [.lats], type: .weightReps),
+        StarterExercise(name: "Single-Arm Dumbbell Row", primary: [.lats], secondary: [.midBack, .bicepsLongHead, .bicepsShortHead], type: .weightReps),
+        StarterExercise(name: "Shrug", primary: [.traps], secondary: [], type: .weightReps),
+        StarterExercise(name: "Hyperextension", primary: [.lowerBack], secondary: [.glutes, .hamstrings], type: .bodyweightReps),
 
         // MARK: - Legs
-        ("Squat", [.quads], [.glutes, .hamstrings], .weightReps),
-        ("Front Squat", [.quads], [.glutes], .weightReps),
-        ("Leg Press", [.quads], [.glutes, .hamstrings], .weightReps),
-        ("Bulgarian Split Squat", [.quads], [.glutes], .weightReps),
-        ("Lunges", [.quads], [.glutes, .hamstrings], .weightReps),
-        ("Leg Curl", [.hamstrings], [], .weightReps),
-        ("Leg Extension", [.quads], [], .weightReps),
-        ("Hip Thrust", [.glutes], [.hamstrings], .weightReps),
-        ("Glute Bridge", [.glutes], [.hamstrings], .bodyweightReps),
-        ("Hip Abduction Machine", [.abductors], [.glutes], .weightReps),
-        ("Hip Adduction Machine", [.adductors], [], .weightReps),
-        ("Calf Raise", [.calves], [], .weightReps),
-        ("Seated Calf Raise", [.calves], [], .weightReps),
+        StarterExercise(
+            name: "Squat",
+            primary: [.quads],
+            secondary: [.glutes, .hamstrings],
+            type: .weightReps,
+            variants: [
+                StarterVariant(name: "High Bar"),
+                StarterVariant(
+                    name: "Low Bar",
+                    primary: [.quads],
+                    secondary: [.glutes, .hamstrings, .lowerBack]
+                ),
+                StarterVariant(
+                    name: "Front",
+                    primary: [.quads],
+                    secondary: [.glutes]
+                )
+            ]
+        ),
+        StarterExercise(
+            name: "Leg Press",
+            primary: [.quads],
+            secondary: [.glutes, .hamstrings],
+            type: .weightReps,
+            variants: [
+                StarterVariant(name: "Mid Foot"),
+                StarterVariant(
+                    name: "High Foot",
+                    primary: [.hamstrings, .glutes],
+                    secondary: [.quads]
+                ),
+                StarterVariant(
+                    name: "Low Foot",
+                    primary: [.quads],
+                    secondary: [.glutes]
+                ),
+                StarterVariant(
+                    name: "Wide Stance",
+                    primary: [.adductors, .quads],
+                    secondary: [.glutes]
+                )
+            ]
+        ),
+        StarterExercise(name: "Bulgarian Split Squat", primary: [.quads], secondary: [.glutes], type: .weightReps),
+        StarterExercise(name: "Lunges", primary: [.quads], secondary: [.glutes, .hamstrings], type: .weightReps),
+        StarterExercise(name: "Leg Curl", primary: [.hamstrings], secondary: [], type: .weightReps),
+        StarterExercise(name: "Leg Extension", primary: [.quads], secondary: [], type: .weightReps),
+        StarterExercise(name: "Hip Thrust", primary: [.glutes], secondary: [.hamstrings], type: .weightReps),
+        StarterExercise(name: "Glute Bridge", primary: [.glutes], secondary: [.hamstrings], type: .bodyweightReps),
+        StarterExercise(name: "Hip Abduction Machine", primary: [.abductors], secondary: [.glutes], type: .weightReps),
+        StarterExercise(name: "Hip Adduction Machine", primary: [.adductors], secondary: [], type: .weightReps),
+        StarterExercise(
+            name: "Calf Raise",
+            primary: [.calves],
+            secondary: [],
+            type: .weightReps,
+            variants: [
+                StarterVariant(name: "Standing"),
+                StarterVariant(name: "Seated")
+            ]
+        ),
 
         // MARK: - Shoulders
-        ("Overhead Press", [.frontDelts], [.sideDelts, .tricepsLongHead, .tricepsLateralHead], .weightReps),
-        ("Arnold Press", [.frontDelts], [.sideDelts], .weightReps),
-        ("Lateral Raise", [.sideDelts], [], .weightReps),
-        ("Cable Lateral Raise", [.sideDelts], [], .weightReps),
-        ("Front Raise", [.frontDelts], [], .weightReps),
-        ("Rear Delt Fly", [.rearDelts], [], .weightReps),
-        ("Face Pull", [.rearDelts], [.traps], .weightReps),
-        ("Upright Row", [.sideDelts], [.traps], .weightReps),
+        StarterExercise(name: "Overhead Press", primary: [.frontDelts], secondary: [.sideDelts, .tricepsLongHead, .tricepsLateralHead], type: .weightReps),
+        StarterExercise(name: "Arnold Press", primary: [.frontDelts], secondary: [.sideDelts], type: .weightReps),
+        StarterExercise(name: "Lateral Raise", primary: [.sideDelts], secondary: [], type: .weightReps),
+        StarterExercise(name: "Cable Lateral Raise", primary: [.sideDelts], secondary: [], type: .weightReps),
+        StarterExercise(name: "Front Raise", primary: [.frontDelts], secondary: [], type: .weightReps),
+        StarterExercise(name: "Rear Delt Fly", primary: [.rearDelts], secondary: [], type: .weightReps),
+        StarterExercise(name: "Face Pull", primary: [.rearDelts], secondary: [.traps], type: .weightReps),
+        StarterExercise(name: "Upright Row", primary: [.sideDelts], secondary: [.traps], type: .weightReps),
 
         // MARK: - Arms
-        ("Bicep Curl", [.bicepsLongHead, .bicepsShortHead], [.forearmFlexors], .weightReps),
-        ("Hammer Curl", [.bicepsLongHead], [.brachioradialis], .weightReps),
-        ("Preacher Curl", [.bicepsShortHead], [], .weightReps),
-        ("Concentration Curl", [.bicepsShortHead], [], .weightReps),
-        ("Cable Curl", [.bicepsLongHead, .bicepsShortHead], [.forearmFlexors], .weightReps),
-        ("Tricep Pushdown", [.tricepsLateralHead, .tricepsLongHead], [], .weightReps),
-        ("Overhead Tricep Extension", [.tricepsLongHead], [], .weightReps),
-        ("Skull Crusher", [.tricepsLongHead, .tricepsLateralHead], [], .weightReps),
-        ("Close-Grip Bench Press", [.tricepsLateralHead, .tricepsMedialHead], [.middleChest], .weightReps),
-        ("Tricep Dip", [.tricepsLateralHead, .tricepsMedialHead], [.lowerChest], .bodyweightReps),
-        ("Wrist Curl", [.forearmFlexors], [], .weightReps),
+        StarterExercise(name: "Bicep Curl", primary: [.bicepsLongHead, .bicepsShortHead], secondary: [.forearmFlexors], type: .weightReps),
+        StarterExercise(name: "Hammer Curl", primary: [.bicepsLongHead], secondary: [.brachioradialis], type: .weightReps),
+        StarterExercise(name: "Preacher Curl", primary: [.bicepsShortHead], secondary: [], type: .weightReps),
+        StarterExercise(name: "Concentration Curl", primary: [.bicepsShortHead], secondary: [], type: .weightReps),
+        StarterExercise(name: "Cable Curl", primary: [.bicepsLongHead, .bicepsShortHead], secondary: [.forearmFlexors], type: .weightReps),
+        StarterExercise(name: "Tricep Pushdown", primary: [.tricepsLateralHead, .tricepsLongHead], secondary: [], type: .weightReps),
+        StarterExercise(name: "Overhead Tricep Extension", primary: [.tricepsLongHead], secondary: [], type: .weightReps),
+        StarterExercise(name: "Skull Crusher", primary: [.tricepsLongHead, .tricepsLateralHead], secondary: [], type: .weightReps),
+        StarterExercise(name: "Wrist Curl", primary: [.forearmFlexors], secondary: [], type: .weightReps),
 
         // MARK: - Core
-        ("Plank", [.abs], [.obliques], .time),
-        ("Weighted Plank", [.abs], [.obliques], .timeWeight),
-        ("Side Plank", [.obliques], [.abs], .time),
-        ("Crunch", [.abs], [], .repsOnly),
-        ("Bicycle Crunch", [.abs], [.obliques], .repsOnly),
-        ("Russian Twist", [.obliques], [.abs], .repsOnly),
-        ("Hanging Leg Raise", [.abs], [.obliques], .bodyweightReps),
-        ("Sit-Up", [.abs], [], .repsOnly),
-        ("Ab Wheel Rollout", [.abs], [.obliques], .repsOnly),
-        ("Mountain Climber", [.abs], [.quads], .repsOnly),
+        StarterExercise(
+            name: "Plank",
+            primary: [.abs],
+            secondary: [.obliques],
+            type: .time,
+            variants: [
+                StarterVariant(name: "Standard"),
+                // The one seeded variant that overrides the logging type:
+                // same movement, timed with load rather than without.
+                StarterVariant(name: "Weighted", type: .timeWeight),
+                StarterVariant(
+                    name: "Side",
+                    primary: [.obliques],
+                    secondary: [.abs]
+                )
+            ]
+        ),
+        StarterExercise(name: "Crunch", primary: [.abs], secondary: [], type: .repsOnly),
+        StarterExercise(name: "Bicycle Crunch", primary: [.abs], secondary: [.obliques], type: .repsOnly),
+        StarterExercise(name: "Russian Twist", primary: [.obliques], secondary: [.abs], type: .repsOnly),
+        StarterExercise(name: "Hanging Leg Raise", primary: [.abs], secondary: [.obliques], type: .bodyweightReps),
+        StarterExercise(name: "Sit-Up", primary: [.abs], secondary: [], type: .repsOnly),
+        StarterExercise(name: "Ab Wheel Rollout", primary: [.abs], secondary: [.obliques], type: .repsOnly),
+        StarterExercise(name: "Mountain Climber", primary: [.abs], secondary: [.quads], type: .repsOnly),
 
         // MARK: - Conditioning
-        ("Running", [], [], .distanceTime),
-        ("Cycling", [], [], .distanceTime),
-        ("Rowing Machine", [], [.lats, .quads], .distanceTime),
-        ("Jump Rope", [.calves], [], .time),
-        ("Farmer's Carry", [.forearmFlexors, .brachioradialis], [.traps], .timeWeight),
-        ("Sled Push", [.quads], [.glutes], .distanceTime)
+        StarterExercise(name: "Running", primary: [], secondary: [], type: .distanceTime),
+        StarterExercise(name: "Cycling", primary: [], secondary: [], type: .distanceTime),
+        StarterExercise(name: "Rowing Machine", primary: [], secondary: [.lats, .quads], type: .distanceTime),
+        StarterExercise(name: "Jump Rope", primary: [.calves], secondary: [], type: .time),
+        StarterExercise(name: "Farmer's Carry", primary: [.forearmFlexors, .brachioradialis], secondary: [.traps], type: .timeWeight),
+        StarterExercise(name: "Sled Push", primary: [.quads], secondary: [.glutes], type: .distanceTime)
     ]
 }
 
 extension ExerciseSeedData {
-    /// Inserts any starter exercise that isn't already present and,
-    /// separately, backfills specific muscle targets onto any
-    /// *non-custom* exercise that matches a starter but doesn't have
-    /// targets yet — covers upgrading a library seeded before
-    /// target-level detail existed, without ever touching an exercise
-    /// the user created themselves (even if it happens to share a name)
-    /// or one that's already been tagged.
+    /// Inserts any starter exercise that isn't already present, backfills
+    /// muscle targets onto any *non-custom* exercise that matches a
+    /// starter but has none yet, and adds any seeded variants the
+    /// exercise is missing.
     ///
-    /// Matching prefers `seedName`, falling back to the current name for
-    /// rows seeded before that field existed (and stamping `seedName` on
-    /// them as it goes). That fallback is what makes renaming a stock
-    /// exercise safe: once stamped, the matcher recognizes it by where
-    /// it came from rather than by what it's currently called, so it
-    /// won't be re-inserted as a duplicate under its original name.
+    /// Matching prefers `seedName`/`seedKey` over the current name, which
+    /// is what makes renaming a stock exercise or variant safe: the
+    /// seeder recognizes it by where it came from rather than by what
+    /// it's currently called, so it won't be re-inserted as a duplicate.
+    /// An exercise the user created themselves is never touched, even if
+    /// it happens to share a starter's name.
     @MainActor
     static func seedIfNeeded(context: ModelContext) {
         let existing = (try? context.fetch(FetchDescriptor<Exercise>())) ?? []
@@ -137,6 +342,9 @@ extension ExerciseSeedData {
                         match.setMuscleTargets(primary: entry.primary, secondary: entry.secondary)
                         didChange = true
                     }
+                    if syncVariants(of: match, to: entry.variants, context: context) {
+                        didChange = true
+                    }
                 }
                 continue
             }
@@ -150,11 +358,56 @@ extension ExerciseSeedData {
             )
             exercise.seedName = entry.name
             context.insert(exercise)
+            _ = syncVariants(of: exercise, to: entry.variants, context: context)
             didChange = true
         }
 
         if didChange {
             try? context.save()
         }
+    }
+
+    /// Adds any seeded variant `exercise` doesn't have yet, matched by
+    /// `seedKey` first so a renamed one isn't re-added. Existing variants
+    /// are left exactly as they are — a user may have retargeted one —
+    /// and variants the user added themselves are never removed, so this
+    /// only ever grows the list.
+    @MainActor
+    @discardableResult
+    private static func syncVariants(
+        of exercise: Exercise,
+        to entries: [StarterVariant],
+        context: ModelContext
+    ) -> Bool {
+        guard !entries.isEmpty else { return false }
+
+        let existing = exercise.variants
+        let bySeedKey = Set(existing.compactMap { $0.seedKey?.lowercased() })
+        let byName = Set(existing.map { $0.name.lowercased() })
+
+        var didChange = false
+        var nextOrder = (existing.map(\.order).max() ?? 0) + 1
+
+        for entry in entries {
+            let key = entry.name.lowercased()
+            guard !bySeedKey.contains(key), !byName.contains(key) else { continue }
+
+            let variant = ExerciseVariant(
+                name: entry.name,
+                order: nextOrder,
+                isCustom: false,
+                seedKey: entry.name,
+                primaryMuscleTargets: entry.primary,
+                secondaryMuscleTargets: entry.secondary,
+                loggingType: entry.type
+            )
+            context.insert(variant)
+            exercise.variants.append(variant)
+
+            nextOrder += 1
+            didChange = true
+        }
+
+        return didChange
     }
 }

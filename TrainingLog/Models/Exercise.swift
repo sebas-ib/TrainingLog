@@ -31,6 +31,12 @@ class Exercise {
     /// it on the next launch for anything already in the library.
     var seedName: String? = nil
 
+    /// The different ways this movement can be performed — see
+    /// `ExerciseVariant`. Empty for most exercises, and an exercise with
+    /// no variants behaves exactly as it always has.
+    @Relationship(deleteRule: .cascade, inverse: \ExerciseVariant.exercise)
+    var variants: [ExerciseVariant] = []
+
     var muscleGroup: MuscleGroup {
         get { MuscleGroup(rawValue: muscleGroupRawValue) ?? .other }
         set { muscleGroupRawValue = newValue.rawValue }
@@ -108,5 +114,51 @@ class Exercise {
         secondaryMuscleTargets = secondary
         muscleGroupRawValue = (primary.first?.muscleGroup ?? .other).rawValue
         secondaryMuscleGroupRawValue = secondary.first?.muscleGroup.rawValue
+    }
+
+    var sortedVariants: [ExerciseVariant] {
+        variants.sortedByOrder()
+    }
+}
+
+// MARK: - Variant Resolution
+
+/// How an exercise and an optional variant combine into the values the
+/// rest of the app actually uses. Written against `(Exercise, Variant?)`
+/// rather than `WorkoutExercise` because plenty of call sites — picker
+/// rows, search results, the variant sheet — need to resolve a pairing
+/// that hasn't been logged yet. `WorkoutExercise` gets thin passthroughs
+/// that supply its own variant.
+///
+/// A nil variant means "logged without specifying one," which is always
+/// legal — including for exercises that do have variants — and simply
+/// resolves to the parent's own values.
+extension Exercise {
+
+    func primaryTargets(for variant: ExerciseVariant?) -> [MuscleTarget] {
+        let override = variant?.primaryMuscleTargets ?? []
+        return override.isEmpty ? primaryMuscleTargets : override
+    }
+
+    func secondaryTargets(for variant: ExerciseVariant?) -> [MuscleTarget] {
+        // Tied to the primary override: a variant that redefines what it
+        // primarily trains has also redefined what it trains
+        // incidentally, so falling back to the parent's secondaries
+        // here would reintroduce the muscles the override just removed.
+        guard let variant, !variant.primaryMuscleTargets.isEmpty else {
+            return secondaryMuscleTargets
+        }
+        return variant.secondaryMuscleTargets
+    }
+
+    func loggingType(for variant: ExerciseVariant?) -> ExerciseLoggingType {
+        variant?.loggingType ?? loggingType
+    }
+
+    /// Append-only: a variant qualifies its parent's name, never replaces
+    /// it, so the movement stays recognizable everywhere it's shown.
+    func displayName(for variant: ExerciseVariant?) -> String {
+        guard let variant else { return name }
+        return "\(name) · \(variant.name)"
     }
 }

@@ -18,7 +18,8 @@ struct TrainingLogApp: App {
             WorkoutSession.self,
             WorkoutExercise.self,
             ExerciseSet.self,
-            Exercise.self
+            Exercise.self,
+            ExerciseVariant.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

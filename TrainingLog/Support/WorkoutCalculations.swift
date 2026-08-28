@@ -11,7 +11,10 @@ enum WorkoutCalculations {
     
     /// Total volume for a single exercise = sum of (reps × weight) across all its sets
     static func volume(for workoutExercise: WorkoutExercise) -> Double {
-        guard workoutExercise.exercise.loggingType.usesWeight else { return 0 }
+        // Resolved, not the parent's own type: a variant can change how a
+        // movement is logged (a weighted plank is timed *with* load), and
+        // reading the parent here would score its volume as zero.
+        guard workoutExercise.resolvedLoggingType.usesWeight else { return 0 }
         return workoutExercise.sets.reduce(0) { total, set in
             total + (Double(set.reps) * set.weight)
         }
@@ -104,6 +107,32 @@ enum WorkoutCalculations {
         }
 
         return result
+    }
+
+    // MARK: - Previous Instance
+
+    /// The last time this same exercise *and variant* was logged before
+    /// `workoutExercise` — what drives the "fill with previous" hint and
+    /// the auto-fill of a freshly-added set.
+    ///
+    /// Variant-scoped with no fallback to the parent's history on
+    /// purpose. An incline and a flat set of the same movement carry very
+    /// different loads, and the caller doesn't merely display this — it
+    /// *copies* the values into the new set. Falling back would silently
+    /// pre-fill a weight the user has never lifted in that position, so a
+    /// variant's first session correctly shows nothing.
+    static func previousInstance(
+        of workoutExercise: WorkoutExercise,
+        in history: [WorkoutExercise]
+    ) -> WorkoutExercise? {
+        history
+            .filter {
+                $0.exercise.persistentModelID == workoutExercise.exercise.persistentModelID
+                    && $0.variant?.persistentModelID == workoutExercise.variant?.persistentModelID
+                    && $0.persistentModelID != workoutExercise.persistentModelID
+                    && $0.loggedAt < workoutExercise.loggedAt
+            }
+            .max { $0.loggedAt < $1.loggedAt }
     }
 
     // MARK: - Personal Records

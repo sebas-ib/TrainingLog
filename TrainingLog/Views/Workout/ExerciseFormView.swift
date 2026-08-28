@@ -25,6 +25,11 @@ struct ExerciseFormView: View {
     @State private var secondaryTargets: Set<MuscleTarget>
     @State private var saveError: Error?
 
+    @Query private var allWorkoutExercises: [WorkoutExercise]
+    @State private var variantBeingEdited: ExerciseVariant?
+    @State private var showingNewVariantSheet = false
+    @State private var variantBlockedFromDeletion: ExerciseVariant?
+
     /// Creation mode — `name` seeds the field from whatever the user
     /// searched for, but stays editable in case they want to tweak it
     /// before saving.
@@ -97,6 +102,8 @@ struct ExerciseFormView: View {
                 } footer: {
                     Text("Used to group this exercise on the Progress tab and to break down training volume by muscle.")
                 }
+
+                variantsSection
             }
             .navigationTitle(isEditing ? "Edit Exercise" : "New Exercise")
             .navigationBarTitleDisplayMode(.inline)
@@ -112,7 +119,148 @@ struct ExerciseFormView: View {
                 }
             }
             .saveErrorAlert($saveError)
+            .sheet(isPresented: $showingNewVariantSheet) {
+                if let existingExercise {
+                    VariantFormView(parent: existingExercise) { draft in
+                        addVariant(draft)
+                    }
+                }
+            }
+            .sheet(item: $variantBeingEdited) { variant in
+                if let existingExercise {
+                    VariantFormView(parent: existingExercise, editing: variant) { draft in
+                        apply(draft, to: variant)
+                    }
+                }
+            }
+            .alert(
+                "Can't Delete \(variantBlockedFromDeletion?.name ?? "Variation")",
+                isPresented: Binding(
+                    get: { variantBlockedFromDeletion != nil },
+                    set: { if !$0 { variantBlockedFromDeletion = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { variantBlockedFromDeletion = nil }
+            } message: {
+                Text("This variation has logged history, so it can't be deleted. Edit it instead if you want to change its name or muscles.")
+            }
         }
+    }
+
+    // MARK: - Variations
+
+    /// Only offered when editing an existing exercise: a variant has to
+    /// hang off a saved parent, and buffering drafts through creation
+    /// would add a whole staging layer for a rare case — a brand-new
+    /// custom exercise can be reopened to add variations straight after.
+    ///
+    /// Unlike the fields above (which apply on Save), variant edits
+    /// commit as they're made, so this section behaves like a
+    /// self-contained sub-editor rather than something Cancel unwinds.
+    @ViewBuilder
+    private var variantsSection: some View {
+        if let existingExercise {
+            Section {
+                ForEach(existingExercise.sortedVariants) { variant in
+                    Button {
+                        variantBeingEdited = variant
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(variant.name)
+                                    .foregroundStyle(.primary)
+                                if let detail = detail(for: variant) {
+                                    Text(detail)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            requestDeleteVariant(variant)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
+
+                Button {
+                    showingNewVariantSheet = true
+                } label: {
+                    Label("Add Variation", systemImage: "plus.circle")
+                }
+            } header: {
+                Text("Variations")
+            } footer: {
+                Text("Different ways to do this movement — a grip, stance, or foot position. Each keeps its own history and records.")
+            }
+        }
+    }
+
+    private func detail(for variant: ExerciseVariant) -> String? {
+        var parts: [String] = []
+        if !variant.primaryMuscleTargets.isEmpty {
+            parts.append(variant.primaryMuscleTargets.map(\.displayName).joined(separator: ", "))
+        }
+        if let type = variant.loggingType {
+            parts.append(type.rawValue)
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private func variantHasHistory(_ variant: ExerciseVariant) -> Bool {
+        allWorkoutExercises.contains {
+            $0.variant?.persistentModelID == variant.persistentModelID
+        }
+    }
+
+    /// Mirrors how deleting an exercise with logged history is handled —
+    /// blocked rather than silently orphaning the sets that reference it.
+    private func requestDeleteVariant(_ variant: ExerciseVariant) {
+        guard !variantHasHistory(variant) else {
+            variantBlockedFromDeletion = variant
+            return
+        }
+
+        existingExercise?.variants.removeAll {
+            $0.persistentModelID == variant.persistentModelID
+        }
+        modelContext.delete(variant)
+        modelContext.save(reportingTo: $saveError)
+    }
+
+    private func addVariant(_ draft: VariantFormView.VariantDraft) {
+        guard let existingExercise else { return }
+
+        let nextOrder = (existingExercise.variants.map(\.order).max() ?? 0) + 1
+        let variant = ExerciseVariant(
+            name: draft.name,
+            order: nextOrder,
+            isCustom: true,
+            primaryMuscleTargets: draft.primaryTargets,
+            secondaryMuscleTargets: draft.secondaryTargets,
+            loggingType: draft.loggingType
+        )
+
+        modelContext.insert(variant)
+        existingExercise.variants.append(variant)
+        modelContext.save(reportingTo: $saveError)
+    }
+
+    private func apply(_ draft: VariantFormView.VariantDraft, to variant: ExerciseVariant) {
+        variant.name = draft.name
+        variant.primaryMuscleTargets = draft.primaryTargets
+        variant.secondaryMuscleTargets = draft.secondaryTargets
+        variant.loggingType = draft.loggingType
+        modelContext.save(reportingTo: $saveError)
     }
 
     private func muscleTargetRow(title: String, targets: Set<MuscleTarget>) -> some View {

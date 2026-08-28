@@ -25,6 +25,7 @@ struct WorkoutDetailView: View {
 
     @State private var showingRenameAlert = false
     @State private var renameText = ""
+    @State private var workoutExerciseChangingVariant: WorkoutExercise?
 
     @FocusState private var focusedField: SetField?
     
@@ -136,8 +137,18 @@ struct WorkoutDetailView: View {
         }
         .animation(.easeOut(duration: 0.2), value: focusedField == nil)
         .sheet(isPresented: $showingExercisePicker) {
-            ExercisePickerView { selectedExercise in
-                addExercise(selectedExercise)
+            ExercisePickerView { selectedExercise, selectedVariant in
+                addExercise(selectedExercise, variant: selectedVariant)
+            }
+        }
+        .sheet(item: $workoutExerciseChangingVariant) { workoutExercise in
+            VariantPickerSheet(
+                exercise: workoutExercise.exercise,
+                suggested: workoutExercise.variant
+            ) { variant in
+                workoutExercise.variant = variant
+                workoutExerciseChangingVariant = nil
+                modelContext.save(reportingTo: $saveError)
             }
         }
         .sheet(isPresented: $showingRestTimer) {
@@ -245,7 +256,7 @@ struct WorkoutDetailView: View {
 
         let sequence = SetField.sequence(
             for: located.set,
-            loggingType: located.workoutExercise.exercise.loggingType
+            loggingType: located.workoutExercise.resolvedLoggingType
         )
 
         guard let index = sequence.firstIndex(of: current) else {
@@ -263,7 +274,7 @@ struct WorkoutDetailView: View {
            setIndex + 1 < sortedSets.count {
             focusedField = SetField.sequence(
                 for: sortedSets[setIndex + 1],
-                loggingType: located.workoutExercise.exercise.loggingType
+                loggingType: located.workoutExercise.resolvedLoggingType
             ).first
             return
         }
@@ -290,7 +301,7 @@ struct WorkoutDetailView: View {
 
         return SetField.sequence(
             for: firstSet,
-            loggingType: nextExercise.exercise.loggingType
+            loggingType: nextExercise.resolvedLoggingType
         ).first
     }
 
@@ -368,15 +379,18 @@ struct WorkoutDetailView: View {
                             .foregroundStyle(.primary)
                             .textCase(nil)
 
-                        Text("View progress")
-                            .font(
-                                .system(
-                                    size: 11,
-                                    weight: .medium
-                                )
+                        Text(
+                            workoutExercise.variant.map { "\($0.name) · View progress" }
+                            ?? "View progress"
+                        )
+                        .font(
+                            .system(
+                                size: 11,
+                                weight: .medium
                             )
-                            .foregroundStyle(.secondary)
-                            .textCase(nil)
+                        )
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
                     }
 
                     Spacer()
@@ -394,12 +408,51 @@ struct WorkoutDetailView: View {
             }
             .buttonStyle(.plain)
 
+            if !workoutExercise.exercise.variants.isEmpty {
+                changeVariantButton(for: workoutExercise)
+            }
+
             deleteExerciseButton(
                 for: workoutExercise
             )
         }
         .padding(.vertical, 4)
         .textCase(nil)
+    }
+
+    /// Switching after the fact matters because you often realize you
+    /// picked the wrong one only after the first set.
+    private func changeVariantButton(
+        for workoutExercise: WorkoutExercise
+    ) -> some View {
+        Button {
+            focusedField = nil
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            workoutExerciseChangingVariant = workoutExercise
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(
+                    .system(
+                        size: 13,
+                        weight: .semibold
+                    )
+                )
+                .foregroundStyle(.secondary)
+                .frame(
+                    width: 32,
+                    height: 32
+                )
+                .background(
+                    Circle()
+                        .fill(
+                            Color(.secondarySystemBackground)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            "Change variation for \(workoutExercise.exercise.name)"
+        )
     }
 
     // MARK: - Delete Exercise Button
@@ -624,12 +677,14 @@ struct WorkoutDetailView: View {
     // MARK: - Add Exercise
 
     private func addExercise(
-        _ exercise: Exercise
+        _ exercise: Exercise,
+        variant: ExerciseVariant? = nil
     ) {
         let nextOrder = (session.exercises.map(\.order).max() ?? 0) + 1
 
         let workoutExercise = WorkoutExercise(
             exercise: exercise,
+            variant: variant,
             loggedAt: session.startTime,
             order: nextOrder
         )

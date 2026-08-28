@@ -17,7 +17,7 @@ final class ExerciseSeedDataTests: XCTestCase {
     func testStarterExerciseCount() {
         XCTAssertEqual(
             ExerciseSeedData.starterExercises.count,
-            69
+            58
         )
     }
 
@@ -285,6 +285,116 @@ final class ExerciseSeedDataTests: XCTestCase {
         XCTAssertNil(custom.seedName)
     }
 
+    // MARK: - Variants
+
+    func testConsolidatedExercisesAreSeededAsVariantsNotSeparateEntries() throws {
+        let context = try makeModelContext()
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let exercises = try fetchExercises(context: context)
+
+        // These used to be their own library entries; they're variants now.
+        for absorbed in ["Incline Bench Press", "Front Squat", "Chin-Up", "Weighted Plank", "Tricep Dip"] {
+            XCTAssertNil(exercises.first { $0.name == absorbed }, "\(absorbed) should no longer be a top-level exercise")
+        }
+
+        let bench = try XCTUnwrap(exercises.first { $0.name == "Bench Press" })
+        XCTAssertEqual(bench.sortedVariants.map(\.name), ["Flat", "Incline", "Decline", "Close-Grip"])
+
+        let incline = try XCTUnwrap(bench.variants.first { $0.name == "Incline" })
+        XCTAssertEqual(bench.primaryTargets(for: incline), [.upperChest])
+    }
+
+    func testSeededLoggingTypeVariantOverridesItsParent() throws {
+        let context = try makeModelContext()
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let plank = try XCTUnwrap(
+            try fetchExercises(context: context).first { $0.name == "Plank" }
+        )
+        let weighted = try XCTUnwrap(plank.variants.first { $0.name == "Weighted" })
+
+        XCTAssertEqual(plank.loggingType, .time)
+        XCTAssertEqual(plank.loggingType(for: weighted), .timeWeight)
+    }
+
+    func testHistoryOnlyVariantsOverrideNothing() throws {
+        let context = try makeModelContext()
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let pullUp = try XCTUnwrap(
+            try fetchExercises(context: context).first { $0.name == "Pull-Up" }
+        )
+        let chinUp = try XCTUnwrap(pullUp.variants.first { $0.name == "Chin-Up" })
+
+        // Exists purely to split history — resolves to the parent.
+        XCTAssertTrue(chinUp.primaryMuscleTargets.isEmpty)
+        XCTAssertNil(chinUp.loggingType)
+        XCTAssertEqual(pullUp.primaryTargets(for: chinUp), [.lats])
+    }
+
+    func testSeedingVariantsIsIdempotent() throws {
+        let context = try makeModelContext()
+
+        ExerciseSeedData.seedIfNeeded(context: context)
+        ExerciseSeedData.seedIfNeeded(context: context)
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let legPress = try XCTUnwrap(
+            try fetchExercises(context: context).first { $0.name == "Leg Press" }
+        )
+
+        XCTAssertEqual(legPress.variants.count, 4)
+        XCTAssertEqual(Set(legPress.variants.map(\.name)).count, 4)
+    }
+
+    func testRenamedSeededVariantIsNotReAdded() throws {
+        let context = try makeModelContext()
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let legPress = try XCTUnwrap(
+            try fetchExercises(context: context).first { $0.name == "Leg Press" }
+        )
+        let highFoot = try XCTUnwrap(legPress.variants.first { $0.name == "High Foot" })
+        highFoot.name = "Feet High"
+        try context.save()
+
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        XCTAssertEqual(legPress.variants.count, 4)
+        XCTAssertNil(legPress.variants.first { $0.name == "High Foot" })
+        XCTAssertEqual(legPress.variants.filter { $0.seedKey == "High Foot" }.count, 1)
+    }
+
+    func testSeedingDoesNotRemoveOrOverwriteUserVariants() throws {
+        let context = try makeModelContext()
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let legPress = try XCTUnwrap(
+            try fetchExercises(context: context).first { $0.name == "Leg Press" }
+        )
+
+        let mine = ExerciseVariant(
+            name: "Single Leg",
+            order: 99,
+            isCustom: true,
+            primaryMuscleTargets: [.glutes]
+        )
+        context.insert(mine)
+        legPress.variants.append(mine)
+
+        // A user retargeting a stock variant must survive re-seeding too.
+        let midFoot = try XCTUnwrap(legPress.variants.first { $0.name == "Mid Foot" })
+        midFoot.primaryMuscleTargets = [.calves]
+        try context.save()
+
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        XCTAssertEqual(legPress.variants.count, 5)
+        XCTAssertNotNil(legPress.variants.first { $0.name == "Single Leg" })
+        XCTAssertEqual(midFoot.primaryMuscleTargets, [.calves])
+    }
+
     // MARK: - Helpers
 
     private func makeModelContext() throws -> ModelContext {
@@ -293,7 +403,7 @@ final class ExerciseSeedDataTests: XCTestCase {
         )
 
         let container = try ModelContainer(
-            for: Exercise.self,
+            for: Exercise.self, ExerciseVariant.self, WorkoutExercise.self,
             configurations: configuration
         )
 
@@ -310,12 +420,7 @@ final class ExerciseSeedDataTests: XCTestCase {
 
     private func starterExercise(
         named name: String
-    ) -> (
-        name: String,
-        primary: [MuscleTarget],
-        secondary: [MuscleTarget],
-        type: ExerciseLoggingType
-    )? {
+    ) -> ExerciseSeedData.StarterExercise? {
         ExerciseSeedData.starterExercises.first {
             $0.name == name
         }

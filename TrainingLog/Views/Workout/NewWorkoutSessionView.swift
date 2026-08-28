@@ -135,6 +135,11 @@ struct NewWorkoutSessionView: View {
         for (index, templateExercise) in sortedTemplateExercises.enumerated() {
             let newWorkoutExercise = WorkoutExercise(
                 exercise: templateExercise.exercise,
+                // Carried over deliberately: repeating a workout means
+                // repeating the same variations of each movement, and
+                // dropping them here would also break the copied
+                // exercise's link to its own previous-set history.
+                variant: templateExercise.variant,
                 loggedAt: sessionStartTime,
                 order: index + 1
             )
@@ -156,7 +161,7 @@ private struct TemplateRow: View {
     let session: WorkoutSession
 
     private var exerciseNames: String {
-        session.exercises.map { $0.exercise.name }.joined(separator: ", ")
+        session.exercises.map(\.resolvedDisplayName).joined(separator: ", ")
     }
 
     private var setCount: Int {

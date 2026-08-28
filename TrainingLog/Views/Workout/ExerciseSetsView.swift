@@ -17,11 +17,10 @@ struct ExerciseSetsView: View {
     @Query(sort: \WorkoutExercise.loggedAt, order: .reverse) private var allWorkoutExercises: [WorkoutExercise]
     
     private var previousWorkoutExercise: WorkoutExercise? {
-        allWorkoutExercises.first {
-            $0.exercise.persistentModelID == workoutExercise.exercise.persistentModelID &&
-            $0.persistentModelID != workoutExercise.persistentModelID &&
-            $0.loggedAt < workoutExercise.loggedAt
-        }
+        WorkoutCalculations.previousInstance(
+            of: workoutExercise,
+            in: allWorkoutExercises
+        )
     }
     
     private func previousSet(forOrder order: Int) -> ExerciseSet? {
@@ -36,8 +35,8 @@ struct ExerciseSetsView: View {
 
             SetRowView(
                 set: set,
-                loggingType: workoutExercise.exercise.loggingType,
-                exerciseName: workoutExercise.exercise.name,
+                loggingType: workoutExercise.resolvedLoggingType,
+                exerciseName: workoutExercise.resolvedDisplayName,
                 focusedField: focusedField,
                 previousSet: previous,
                 // Target defaults to what was done last time for this
@@ -69,7 +68,7 @@ struct ExerciseSetsView: View {
         // repeating a set with the same numbers, so the row should start
         // pre-filled (and offering "Clear") rather than empty.
         if let template = previousSet(forOrder: nextOrder) {
-            newSet.copyValues(from: template, loggingType: workoutExercise.exercise.loggingType)
+            newSet.copyValues(from: template, loggingType: workoutExercise.resolvedLoggingType)
         }
 
         workoutExercise.sets.append(newSet)
