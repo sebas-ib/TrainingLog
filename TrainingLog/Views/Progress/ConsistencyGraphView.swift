@@ -23,7 +23,8 @@ struct ConsistencyGraphView: View {
         let weekday = calendar.component(.weekday, from: today)
         let daysUntilSaturday = 7 - weekday
         guard let gridEnd = calendar.date(byAdding: .day, value: daysUntilSaturday, to: today) else { return [] }
-        guard let gridStart = calendar.date(byAdding: .day, value: -(52 * 7 - 1), to: gridEnd) else { return [] }
+        let weeksToShow = max(1, unitSettings.consistencyWeeksToShow)
+        guard let gridStart = calendar.date(byAdding: .day, value: -(weeksToShow * 7 - 1), to: gridEnd) else { return [] }
         
         var allDays: [Date] = []
         var current = gridStart

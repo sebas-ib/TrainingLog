@@ -200,6 +200,91 @@ final class ExerciseSeedDataTests: XCTestCase {
         XCTAssertEqual(benchPress.muscleGroup, .biceps)
     }
 
+    // MARK: - Renaming a seeded exercise
+
+    func testSeedIfNeededStampsSeedNameOnStarterExercises() throws {
+        let context = try makeModelContext()
+
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let benchPress = try XCTUnwrap(
+            try fetchExercises(context: context).first { $0.name == "Bench Press" }
+        )
+
+        XCTAssertEqual(benchPress.seedName, "Bench Press")
+    }
+
+    func testRenamedStarterExerciseIsNotReseededAsADuplicate() throws {
+        let context = try makeModelContext()
+
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let benchPress = try XCTUnwrap(
+            try fetchExercises(context: context).first { $0.name == "Bench Press" }
+        )
+        benchPress.name = "BP"
+        try context.save()
+
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let exercises = try fetchExercises(context: context)
+
+        // The rename must not resurrect a second "Bench Press".
+        XCTAssertEqual(exercises.count, ExerciseSeedData.starterExercises.count)
+        XCTAssertNil(exercises.first { $0.name == "Bench Press" })
+        XCTAssertEqual(exercises.filter { $0.seedName == "Bench Press" }.count, 1)
+    }
+
+    func testSeedIfNeededBackfillsSeedNameOnPreExistingRowsBeforeRename() throws {
+        let context = try makeModelContext()
+
+        // A row seeded before `seedName` existed: non-custom, matching a
+        // starter name, but with no seed identity recorded yet.
+        let legacy = Exercise(
+            name: "Squat",
+            isCustom: false,
+            muscleGroup: .legs,
+            secondaryMuscleGroup: nil,
+            loggingType: .weightReps
+        )
+        context.insert(legacy)
+        try context.save()
+        XCTAssertNil(legacy.seedName)
+
+        // First launch after the update stamps the identity...
+        ExerciseSeedData.seedIfNeeded(context: context)
+        XCTAssertEqual(legacy.seedName, "Squat")
+
+        // ...so a later rename is safe from then on.
+        legacy.name = "Back Squat"
+        try context.save()
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        let exercises = try fetchExercises(context: context)
+        XCTAssertEqual(exercises.count, ExerciseSeedData.starterExercises.count)
+        XCTAssertNil(exercises.first { $0.name == "Squat" })
+    }
+
+    func testSeedIfNeededDoesNotStampSeedNameOnCustomExercise() throws {
+        let context = try makeModelContext()
+
+        let custom = Exercise(
+            name: "Bench Press",
+            isCustom: true,
+            muscleGroup: .biceps,
+            secondaryMuscleGroup: nil,
+            loggingType: .weightReps
+        )
+        context.insert(custom)
+        try context.save()
+
+        ExerciseSeedData.seedIfNeeded(context: context)
+
+        // A user's own exercise never inherits a starter's identity —
+        // otherwise it would permanently shadow the real starter.
+        XCTAssertNil(custom.seedName)
+    }
+
     // MARK: - Helpers
 
     private func makeModelContext() throws -> ModelContext {

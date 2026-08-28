@@ -14,6 +14,15 @@ struct WorkoutDetailView: View {
     @State private var showingExercisePicker = false
     @State private var exercisePendingDeletion: WorkoutExercise?
 
+    /// Owned here rather than per-row so the whole workout screen —
+    /// including every set row nested inside it — surfaces a failed
+    /// write through one alert instead of a row-level pile of them.
+    @State private var saveError: Error?
+
+    /// Held at the screen level so a running set stopwatch outlives its
+    /// row being recycled by the `List` — see `SetTimerStore`.
+    @StateObject private var setTimers = SetTimerStore()
+
     @State private var showingRenameAlert = false
     @State private var renameText = ""
 
@@ -176,6 +185,14 @@ struct WorkoutDetailView: View {
                 "This will permanently remove this exercise and all of its logged sets from this session."
             )
         }
+        .saveErrorAlert($saveError)
+        .environmentObject(setTimers)
+        .onDisappear {
+            // Leaving the workout screen is the point a running set
+            // stopwatch should actually stop — scrolling its row off
+            // no longer does (see SetTimerStore).
+            setTimers.suspendAll()
+        }
     }
 
     // MARK: - Exercise Section
@@ -187,7 +204,8 @@ struct WorkoutDetailView: View {
         Section {
             ExerciseSetsView(
                 workoutExercise: workoutExercise,
-                focusedField: $focusedField
+                focusedField: $focusedField,
+                saveError: $saveError
             )
             .listRowInsets(
                 EdgeInsets(
@@ -571,7 +589,7 @@ struct WorkoutDetailView: View {
             ? nil
             : trimmedName
 
-        try? modelContext.save()
+        modelContext.save(reportingTo: $saveError)
 
         renameText = ""
     }
@@ -627,13 +645,7 @@ struct WorkoutDetailView: View {
             )
         }
 
-        do {
-            try modelContext.save()
-        } catch {
-            print(
-                "Failed to save newly added exercise: \(error.localizedDescription)"
-            )
-        }
+        modelContext.save(reportingTo: $saveError)
     }
 
     // MARK: - Delete Exercise
@@ -657,12 +669,6 @@ struct WorkoutDetailView: View {
             )
         }
 
-        do {
-            try modelContext.save()
-        } catch {
-            print(
-                "Failed to save deletion context updates: \(error.localizedDescription)"
-            )
-        }
+        modelContext.save(reportingTo: $saveError)
     }
 }

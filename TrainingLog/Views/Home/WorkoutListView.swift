@@ -10,7 +10,6 @@ import SwiftData
 
 struct WorkoutListView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var unitSettings: UnitSettings
 
     let workoutDay: WorkoutDay
     let onWorkoutSessionCreated: (WorkoutSession) -> Void
@@ -63,19 +62,7 @@ struct WorkoutListView: View {
                 "This will permanently remove this workout and all logged exercises and sets within it."
             )
         }
-        .alert(
-            "Couldn't Save Changes",
-            isPresented: saveErrorBinding
-        ) {
-            Button("OK", role: .cancel) {
-                saveError = nil
-            }
-        } message: {
-            Text(
-                saveError?.localizedDescription
-                ?? "An unknown error occurred while saving your workout."
-            )
-        }
+        .saveErrorAlert($saveError)
         .sheet(isPresented: $showingNewWorkoutSheet) {
             NewWorkoutSessionView(targetDate: workoutDay.date) { newWorkout in
                 workoutDay.sessions.append(newWorkout)
@@ -118,19 +105,6 @@ struct WorkoutListView: View {
         )
     }
 
-    private var saveErrorBinding: Binding<Bool> {
-        Binding(
-            get: {
-                saveError != nil
-            },
-            set: { isPresented in
-                if !isPresented {
-                    saveError = nil
-                }
-            }
-        )
-    }
-
     private func deletePendingWorkout() {
         guard let workout = workoutSessionPendingDeletion else {
             return
@@ -154,11 +128,7 @@ struct WorkoutListView: View {
     }
 
     private func saveChanges() {
-        do {
-            try modelContext.save()
-        } catch {
-            saveError = error
-        }
+        modelContext.save(reportingTo: $saveError)
     }
 }
 

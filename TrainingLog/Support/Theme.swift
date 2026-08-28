@@ -18,7 +18,7 @@ enum Theme {
     static let accent = Color(uiColor: UIColor { traitCollection in
         traitCollection.userInterfaceStyle == .dark
             ? UIColor(red: 0.95, green: 0.42, blue: 0.20, alpha: 1)
-            : UIColor(red: 0.95, green: 0.42, blue: 0.20, alpha: 1)
+            : UIColor(red: 0.78, green: 0.32, blue: 0.12, alpha: 1)
     })
 
     /// The "elevated card" background used for panels that sit on top of

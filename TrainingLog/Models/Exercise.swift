@@ -21,6 +21,16 @@ class Exercise {
     var primaryMuscleTargetRawValues: [String] = []
     var secondaryMuscleTargetRawValues: [String] = []
 
+    /// The starter-library name this exercise was seeded from, if it was.
+    /// Seeding used to match purely on the *current* name, so renaming a
+    /// stock exercise ("Bench Press" → "BP") made it invisible to the
+    /// matcher and a duplicate "Bench Press" reappeared on next launch.
+    /// This pins the identity to what it was seeded as, so a rename is
+    /// just a rename. Defaulted to nil so SwiftData's lightweight
+    /// migration can add it to existing rows; `seedIfNeeded` backfills
+    /// it on the next launch for anything already in the library.
+    var seedName: String? = nil
+
     var muscleGroup: MuscleGroup {
         get { MuscleGroup(rawValue: muscleGroupRawValue) ?? .other }
         set { muscleGroupRawValue = newValue.rawValue }

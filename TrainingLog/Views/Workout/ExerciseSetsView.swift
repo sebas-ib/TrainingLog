@@ -9,9 +9,11 @@ import SwiftData
 
 struct ExerciseSetsView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var setTimers: SetTimerStore
     @Bindable var workoutExercise: WorkoutExercise
     var focusedField: FocusState<SetField?>.Binding
-    
+    @Binding var saveError: Error?
+
     @Query(sort: \WorkoutExercise.loggedAt, order: .reverse) private var allWorkoutExercises: [WorkoutExercise]
     
     private var previousWorkoutExercise: WorkoutExercise? {
@@ -30,12 +32,22 @@ struct ExerciseSetsView: View {
         let sortedSets = workoutExercise.sets.sortedByOrder()
 
         ForEach(sortedSets, id: \.id) { set in
+            let previous = previousSet(forOrder: set.order)
+
             SetRowView(
                 set: set,
                 loggingType: workoutExercise.exercise.loggingType,
                 exerciseName: workoutExercise.exercise.name,
                 focusedField: focusedField,
-                previousSet: previousSet(forOrder: set.order)
+                previousSet: previous,
+                // Target defaults to what was done last time for this
+                // exercise — only for a timer the store hasn't already
+                // created, so the user's own +/- adjustments stick.
+                timer: setTimers.timer(
+                    for: set,
+                    defaultTargetSeconds: previous?.durationSeconds ?? 0
+                ),
+                saveError: $saveError
             )
         }
         .onDelete(perform: deleteSets)
@@ -61,19 +73,20 @@ struct ExerciseSetsView: View {
         }
 
         workoutExercise.sets.append(newSet)
-        try? modelContext.save()
+        modelContext.save(reportingTo: $saveError)
     }
-    
+
     private func deleteSets(at offsets: IndexSet) {
         let sorted = workoutExercise.sets.sortedByOrder()
         for index in offsets {
+            setTimers.discard(sorted[index])
             modelContext.delete(sorted[index])
         }
         workoutExercise.sets.removeAll { deletedSet in
             offsets.contains { sorted[$0].persistentModelID == deletedSet.persistentModelID }
         }
         renumberSets()
-        try? modelContext.save()
+        modelContext.save(reportingTo: $saveError)
     }
 
     private func renumberSets() {

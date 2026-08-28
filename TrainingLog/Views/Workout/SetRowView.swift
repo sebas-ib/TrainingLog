@@ -66,31 +66,17 @@ struct SetRowView: View {
     var focusedField: FocusState<SetField?>.Binding
     var previousSet: ExerciseSet?
 
+    /// Supplied by `SetTimerStore` rather than owned as `@State` here —
+    /// a row's `@State` is discarded when `List` recycles it off screen,
+    /// which used to stop a running set timer mid-set just because the
+    /// user scrolled. See `SetTimerStore` for the full story.
+    let timer: Timer
+
+    @Binding var saveError: Error?
+
     @State private var pendingSave: DispatchWorkItem?
     @State private var hasAppeared = false
     @State private var showFocusMode = false
-    @State private var timer: Timer
-
-    init(
-        set: ExerciseSet,
-        loggingType: ExerciseLoggingType,
-        exerciseName: String,
-        focusedField: FocusState<SetField?>.Binding,
-        previousSet: ExerciseSet? = nil
-    ) {
-        self.set = set
-        self.loggingType = loggingType
-        self.exerciseName = exerciseName
-        self.focusedField = focusedField
-        self.previousSet = previousSet
-
-        // Target defaults to what was done last time for this exercise —
-        // still fully adjustable via the +/- controls afterward.
-        self.timer = Timer(
-            initialSeconds: set.durationSeconds,
-            targetSeconds: previousSet?.durationSeconds ?? 0
-        )
-    }
 
     // MARK: - Saving
 
@@ -98,7 +84,7 @@ struct SetRowView: View {
         pendingSave?.cancel()
 
         let work = DispatchWorkItem {
-            try? modelContext.save()
+            modelContext.save(reportingTo: $saveError)
         }
 
         pendingSave = work
@@ -112,7 +98,7 @@ struct SetRowView: View {
     private func saveNow() {
         pendingSave?.cancel()
         pendingSave = nil
-        try? modelContext.save()
+        modelContext.save(reportingTo: $saveError)
     }
 
     // MARK: - Unit Conversion
@@ -330,8 +316,12 @@ struct SetRowView: View {
             y: hasAppeared ? 0 : 6
         )
         .onDisappear {
+            // Flushes pending edits, but deliberately does *not* suspend
+            // the timer: `List` fires this whenever the row scrolls out
+            // of view, and a set that's actively being timed should keep
+            // running. `SetTimerStore.suspendAll()`, on leaving the
+            // workout screen, is what stops them now.
             saveNow()
-            timer.suspend()
         }
         .onAppear {
             let delay =

@@ -52,7 +52,12 @@ enum DistanceUnit: String, CaseIterable {
 
 final class UnitSettings: ObservableObject {
     @AppStorage("weightUnit") var unitRawValue: String = WeightUnit.lbs.rawValue
-    @AppStorage("consistencyWeeksToShow") var consistencyWeeksToShow: Int = 12
+
+    /// How many weeks the Progress tab's consistency graph covers.
+    /// Defaults to 52 — the full year the graph has always drawn — since
+    /// nothing read this setting until now and shrinking every existing
+    /// user's graph to a stored-but-unused 12 wasn't the intent.
+    @AppStorage("consistencyWeeksToShow") var consistencyWeeksToShow: Int = 52
 
     var unit: WeightUnit {
         get { WeightUnit(rawValue: unitRawValue) ?? .lbs }

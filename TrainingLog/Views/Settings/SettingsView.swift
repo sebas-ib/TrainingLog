@@ -22,6 +22,21 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
             }
+
+            Section {
+                Picker("History Shown", selection: Binding(
+                    get: { unitSettings.consistencyWeeksToShow },
+                    set: { unitSettings.consistencyWeeksToShow = $0 }
+                )) {
+                    Text("3 Months").tag(13)
+                    Text("6 Months").tag(26)
+                    Text("1 Year").tag(52)
+                }
+            } header: {
+                Text("Consistency Graph")
+            } footer: {
+                Text("How far back the activity graph on the Progress tab reaches.")
+            }
         }
         .navigationTitle("Settings")
         .toolbar(.hidden, for: .tabBar)

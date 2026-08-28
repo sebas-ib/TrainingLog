@@ -18,8 +18,7 @@ struct HomeView: View {
     @State private var showingNewWorkoutSheet = false
     @State private var activeWorkoutSession: WorkoutSession?
     @State private var datePickerExpanded = false
-    @State private var gradientRotation: Double = 0
-    
+
     private let calendar = Calendar.current
 
     private var selectedDay: WorkoutDay? {
@@ -196,19 +195,7 @@ struct HomeView: View {
             .navigationDestination(item: $activeWorkoutSession) { workout in
                 WorkoutDetailView(session: workout)
             }
-            .alert(
-                "Couldn't Save Workout",
-                isPresented: saveErrorBinding
-            ) {
-                Button("OK", role: .cancel) {
-                    saveError = nil
-                }
-            } message: {
-                Text(
-                    saveError?.localizedDescription
-                    ?? "An unknown error occurred while saving your workout."
-                )
-            }
+            .saveErrorAlert($saveError)
         }
     }
 
@@ -262,15 +249,6 @@ struct HomeView: View {
         )
     }
 
-    private var saveErrorBinding: Binding<Bool> {
-        Binding(
-            get: { saveError != nil },
-            set: { isPresented in
-                if !isPresented { saveError = nil }
-            }
-        )
-    }
-    
     private func stepDate(by days: Int) {
         guard let newDate = calendar.date(byAdding: .day, value: days, to: selectedDate) else { return }
         let today = calendar.startOfDay(for: Date())
@@ -293,11 +271,7 @@ struct HomeView: View {
     }
 
     private func saveChanges() {
-        do {
-            try modelContext.save()
-        } catch {
-            saveError = error
-        }
+        modelContext.save(reportingTo: $saveError)
     }
     
     private func scheduleNavigation(to workout: WorkoutSession) {

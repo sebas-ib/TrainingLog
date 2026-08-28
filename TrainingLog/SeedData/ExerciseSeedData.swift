@@ -94,16 +94,29 @@ enum ExerciseSeedData {
 }
 
 extension ExerciseSeedData {
-    /// Inserts any starter exercise that isn't already present (matched
-    /// by name, case-insensitively) and, separately, backfills specific
-    /// muscle targets onto any *non-custom* exercise that matches a
-    /// starter name but doesn't have targets yet — covers upgrading a
-    /// library seeded before target-level detail existed, without ever
-    /// touching an exercise the user created themselves (even if it
-    /// happens to share a name) or one that's already been tagged.
+    /// Inserts any starter exercise that isn't already present and,
+    /// separately, backfills specific muscle targets onto any
+    /// *non-custom* exercise that matches a starter but doesn't have
+    /// targets yet — covers upgrading a library seeded before
+    /// target-level detail existed, without ever touching an exercise
+    /// the user created themselves (even if it happens to share a name)
+    /// or one that's already been tagged.
+    ///
+    /// Matching prefers `seedName`, falling back to the current name for
+    /// rows seeded before that field existed (and stamping `seedName` on
+    /// them as it goes). That fallback is what makes renaming a stock
+    /// exercise safe: once stamped, the matcher recognizes it by where
+    /// it came from rather than by what it's currently called, so it
+    /// won't be re-inserted as a duplicate under its original name.
     @MainActor
     static func seedIfNeeded(context: ModelContext) {
         let existing = (try? context.fetch(FetchDescriptor<Exercise>())) ?? []
+        let existingBySeedName = Dictionary(
+            existing.compactMap { exercise in
+                exercise.seedName.map { ($0.lowercased(), exercise) }
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
         let existingByName = Dictionary(
             existing.map { ($0.name.lowercased(), $0) },
             uniquingKeysWith: { first, _ in first }
@@ -112,10 +125,18 @@ extension ExerciseSeedData {
         var didChange = false
 
         for entry in starterExercises {
-            if let match = existingByName[entry.name.lowercased()] {
-                if !match.isCustom, match.primaryMuscleTargets.isEmpty {
-                    match.setMuscleTargets(primary: entry.primary, secondary: entry.secondary)
-                    didChange = true
+            let key = entry.name.lowercased()
+
+            if let match = existingBySeedName[key] ?? existingByName[key] {
+                if !match.isCustom {
+                    if match.seedName == nil {
+                        match.seedName = entry.name
+                        didChange = true
+                    }
+                    if match.primaryMuscleTargets.isEmpty {
+                        match.setMuscleTargets(primary: entry.primary, secondary: entry.secondary)
+                        didChange = true
+                    }
                 }
                 continue
             }
@@ -127,6 +148,7 @@ extension ExerciseSeedData {
                 secondaryMuscleTargets: entry.secondary,
                 loggingType: entry.type
             )
+            exercise.seedName = entry.name
             context.insert(exercise)
             didChange = true
         }

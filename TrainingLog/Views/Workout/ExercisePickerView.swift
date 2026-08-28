@@ -20,6 +20,7 @@ struct ExercisePickerView: View {
     @State private var selectedTarget: MuscleTarget?
     @State private var exercisePendingDeletion: Exercise?
     @State private var exerciseBlockedFromDeletion: Exercise?
+    @State private var saveError: Error?
 
     let onSelect: (Exercise) -> Void
 
@@ -121,7 +122,7 @@ struct ExercisePickerView: View {
     private func confirmDelete() {
         guard let exercise = exercisePendingDeletion else { return }
         modelContext.delete(exercise)
-        try? modelContext.save()
+        modelContext.save(reportingTo: $saveError)
         exercisePendingDeletion = nil
     }
 
@@ -252,6 +253,7 @@ struct ExercisePickerView: View {
             } message: {
                 Text("This exercise has logged history, so it can't be deleted. Edit it instead if you want to change its name or muscles.")
             }
+            .saveErrorAlert($saveError)
         }
     }
 

@@ -162,4 +162,5 @@ struct BalanceView: View {
 
     return BalanceView()
         .modelContainer(container)
+        .environmentObject(UnitSettings())
 }

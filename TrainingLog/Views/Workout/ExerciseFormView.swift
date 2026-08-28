@@ -23,6 +23,7 @@ struct ExerciseFormView: View {
     @State private var loggingType: ExerciseLoggingType
     @State private var primaryTargets: Set<MuscleTarget>
     @State private var secondaryTargets: Set<MuscleTarget>
+    @State private var saveError: Error?
 
     /// Creation mode — `name` seeds the field from whatever the user
     /// searched for, but stays editable in case they want to tweak it
@@ -110,6 +111,7 @@ struct ExerciseFormView: View {
                     .disabled(!canSave)
                 }
             }
+            .saveErrorAlert($saveError)
         }
     }
 
@@ -128,17 +130,29 @@ struct ExerciseFormView: View {
         return targets.map(\.displayName).sorted().joined(separator: ", ")
     }
 
+    /// Puts a selection back into `MuscleTarget`'s own declaration order —
+    /// the same order the picker lists them in. `Set` iteration order isn't
+    /// stable across launches, and `setMuscleTargets` derives the broad
+    /// `muscleGroup` from the *first* element, so converting with a plain
+    /// `Array(...)` meant saving the same selection twice could pick a
+    /// different group each time — and with it a different Progress-tab
+    /// section, row icon, and volume-by-muscle-group bucket.
+    private func ordered(_ targets: Set<MuscleTarget>) -> [MuscleTarget] {
+        MuscleTarget.allCases.filter(targets.contains)
+    }
+
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let primary = Array(primaryTargets)
-        let secondary = Array(secondaryTargets)
+        let primary = ordered(primaryTargets)
+        let secondary = ordered(secondaryTargets)
+
+        let saved: Exercise
 
         if let existingExercise {
             existingExercise.name = trimmedName
             existingExercise.loggingType = loggingType
             existingExercise.setMuscleTargets(primary: primary, secondary: secondary)
-            try? modelContext.save()
-            onSave(existingExercise)
+            saved = existingExercise
         } else {
             let exercise = Exercise(
                 name: trimmedName,
@@ -148,10 +162,17 @@ struct ExerciseFormView: View {
                 loggingType: loggingType
             )
             modelContext.insert(exercise)
-            try? modelContext.save()
-            onSave(exercise)
+            saved = exercise
         }
 
+        modelContext.save(reportingTo: $saveError)
+
+        // Stay open on a failed write so the alert is actually visible
+        // and the user's entries aren't thrown away — dismissing here
+        // would tear down the sheet the alert is attached to.
+        guard saveError == nil else { return }
+
+        onSave(saved)
         dismiss()
     }
 }
